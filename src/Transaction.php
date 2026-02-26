@@ -12,7 +12,8 @@ use App\Accounting\Exceptions\{
     InvalidJournalEntryValue,
     InvalidJournalMethod,
     DebitsAndCreditsDoNotEqual,
-    TransactionCouldNotBeProcessed
+    TransactionCouldNotBeProcessed,
+    TransactionAlreadyReversedException
 };
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -120,5 +121,84 @@ class Transaction
                 'In this transaction, credits == ' . $credits . ' and debits == ' . $debits
             );
         }
+    }
+
+    /**
+     * Reverse all entries in a transaction group.
+     */
+    public static function reverseGroup(
+        string $transactionGroupUuid,
+        ?string $memo = null,
+        ?Carbon $postDate = null
+    ): string {
+        $entries = \App\Accounting\Models\JournalEntry::where('transaction_group', $transactionGroupUuid)
+            ->whereNull('reversal_of')
+            ->get();
+
+        if ($entries->isEmpty()) {
+            throw new TransactionCouldNotBeProcessed(
+                "No entries found for transaction group {$transactionGroupUuid}"
+            );
+        }
+
+        if ($entries->first()->is_reversed) {
+            throw TransactionAlreadyReversedException::forTransactionGroup($transactionGroupUuid);
+        }
+
+        $newGroupUuid = Str::uuid()->toString();
+
+        DB::beginTransaction();
+        try {
+            foreach ($entries as $entry) {
+                $reversalEntry = $entry->account->journalEntries()->create([
+                    'debit' => $entry->credit,
+                    'credit' => $entry->debit,
+                    'currency' => $entry->currency,
+                    'memo' => $memo ?? "REVERSAL: {$entry->memo}",
+                    'post_date' => $postDate ?? Carbon::now(),
+                    'transaction_group' => $newGroupUuid,
+                    'ref_class' => $entry->ref_class,
+                    'ref_class_id' => $entry->ref_class_id,
+                    'is_posted' => true,
+                    'reversal_of' => $entry->id,
+                ]);
+
+                $entry->update([
+                    'is_reversed' => true,
+                    'reversed_by' => $reversalEntry->id,
+                ]);
+            }
+
+            // Reset balances for all affected accounts
+            $entries->pluck('account')->unique('id')->each(function ($account) {
+                $account->resetCurrentBalances();
+            });
+
+            DB::commit();
+            return $newGroupUuid;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw new TransactionCouldNotBeProcessed(
+                'Reversal failed: ' . $e->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Void all entries in a transaction group (reverse with original post dates).
+     */
+    public static function voidGroup(string $transactionGroupUuid): string
+    {
+        $entries = \App\Accounting\Models\JournalEntry::where('transaction_group', $transactionGroupUuid)
+            ->whereNull('reversal_of')
+            ->get();
+
+        $postDate = $entries->first()?->post_date;
+
+        return static::reverseGroup(
+            $transactionGroupUuid,
+            null,
+            $postDate
+        );
     }
 }
