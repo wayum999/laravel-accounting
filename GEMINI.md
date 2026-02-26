@@ -4,7 +4,7 @@
 
 ## Overview
 
-**laravel-accounting** is a Laravel package (`williamlettieri/accounting`) that provides full double-entry accounting functionality for any Laravel application. It is **not** a standalone app — it is a reusable Composer package installed into consuming Laravel projects via Packagist.
+**laravel-accounting** is a Laravel package (`wayum999/laravel-accounting`) that provides full double-entry accounting functionality for any Laravel application. It is **not** a standalone app — it is a reusable Composer package installed into consuming Laravel projects via Packagist.
 
 ## Tech Stack
 

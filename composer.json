@@ -1,8 +1,11 @@
 {
-    "name": "williamlettieri/accounting",
+    "name": "wayum999/laravel-accounting",
     "description": "Laravel Double-Entry Accounting Package with proper debit/credit rules, General Journal, General Ledger, and non-posting transactions",
     "license": "MIT",
-    "keywords": ["laravel", "accounting"],
+    "keywords": [
+        "laravel",
+        "accounting"
+    ],
     "authors": [
         {
             "name": "William Lettieri",
@@ -30,7 +33,6 @@
         "optimize-autoloader": true,
         "preferred-install": "dist"
     },
-
     "extra": {
         "laravel": {
             "providers": [
