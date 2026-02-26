@@ -7,9 +7,9 @@ namespace Tests\Functional;
 use Carbon\Carbon;
 use Money\Currency;
 use Money\Money;
-use App\Accounting\Models\Journal;
-use App\Accounting\Models\JournalTransaction;
-use App\Accounting\Models\Ledger;
+use App\Accounting\Models\Account;
+use App\Accounting\Models\AccountType;
+use App\Accounting\Models\JournalEntry;
 use App\Accounting\Transaction;
 use Tests\TestCase;
 
@@ -20,13 +20,13 @@ class AccountingIntegrationTest extends TestCase
         // Test a complete transaction flow to ensure all code paths are hit
         $transaction = Transaction::newDoubleEntryTransactionGroup();
 
-        $journal1 = Journal::create([
+        $account1 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
 
-        $journal2 = Journal::create([
+        $account2 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
@@ -38,20 +38,20 @@ class AccountingIntegrationTest extends TestCase
 
         // Add transactions with all possible parameters
         $transaction->addTransaction(
-            $journal1,
+            $account1,
             'debit',
             $money1,
             'Complete test debit',
-            $journal2, // reference object
+            $account2, // reference object
             \Carbon\Carbon::now()->subHours(2)
         );
 
         $transaction->addTransaction(
-            $journal2,
+            $account2,
             'credit',
             $money2,
             'Complete test credit',
-            $journal1, // reference object
+            $account1, // reference object
             \Carbon\Carbon::now()->subHours(1)
         );
 
@@ -61,52 +61,46 @@ class AccountingIntegrationTest extends TestCase
         $this->assertIsString($transactionId);
         $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $transactionId);
 
-        // Verify the transactions were created with references
-        $createdTransactions = JournalTransaction::where('transaction_group', $transactionId)->get();
-        $this->assertCount(2, $createdTransactions);
+        // Verify the entries were created with references
+        $createdEntries = JournalEntry::where('transaction_group', $transactionId)->get();
+        $this->assertCount(2, $createdEntries);
 
         // Check that references were set
-        $debitTransaction = $createdTransactions->where('journal_id', $journal1->id)->first();
-        $this->assertEquals($journal2::class, $debitTransaction->ref_class);
-        $this->assertEquals($journal2->id, $debitTransaction->ref_class_id);
+        $debitEntry = $createdEntries->where('account_id', $account1->id)->first();
+        $this->assertEquals($account2::class, $debitEntry->ref_class);
+        $this->assertEquals($account2->id, $debitEntry->ref_class_id);
     }
 
-    public function testBasicJournalTransactions()
+    public function testBasicAccountTransactions()
     {
-        // Create ledgers
-        $cashLedger = Ledger::create([
+        // Create account types
+        $cashAccountType = AccountType::create([
             'name' => 'Cash Account',
             'type' => 'asset',
         ]);
 
-        $revenueLedger = Ledger::create([
+        $incomeAccountType = AccountType::create([
             'name' => 'Service Revenue',
-            'type' => 'revenue',
+            'type' => 'income',
         ]);
 
-        // Create journals for each ledger with required fields
-        $cashJournal = $cashLedger->journals()->create([
-            'ledger_id' => $cashLedger->id,
+        // Create accounts linked to their account types
+        $cashAccount = $cashAccountType->accounts()->create([
             'balance' => 0,
             'currency' => 'USD',
-            'memo' => 'Cash Journal',
-            'post_date' => now(),
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
-        
-        $revenueJournal = $revenueLedger->journals()->create([
-            'ledger_id' => $revenueLedger->id,
+
+        $incomeAccount = $incomeAccountType->accounts()->create([
             'balance' => 0,
             'currency' => 'USD',
-            'memo' => 'Revenue Journal',
-            'post_date' => now(),
             'morphed_type' => 'test',
             'morphed_id' => 2,
         ]);
-        
-        // Create additional revenue journal with required fields
-        $revenueJournal2 = $revenueLedger->journals()->create([
+
+        // Create an additional income account
+        $incomeAccountType->accounts()->create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 3,
@@ -114,164 +108,153 @@ class AccountingIntegrationTest extends TestCase
         ]);
 
         // Initial balance check
-        $this->assertEquals(0, $cashJournal->getCurrentBalanceInDollars());
-        $this->assertEquals(0, $revenueJournal->getCurrentBalanceInDollars());
+        $this->assertEquals(0, $cashAccount->getCurrentBalanceInDollars());
+        $this->assertEquals(0, $incomeAccount->getCurrentBalanceInDollars());
 
         // Record a service revenue transaction
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
-        // Debit cash (asset increases)
+
+        // Debit cash (asset increases with debit)
         $transaction->addDollarTransaction(
-            $cashJournal,
+            $cashAccount,
             'debit',
             150.00,
             'Service revenue received',
             null,
             Carbon::now()
         );
-        
-        // Credit revenue (revenue increases)
+
+        // Credit income (income increases with credit)
         $transaction->addDollarTransaction(
-            $revenueJournal,
+            $incomeAccount,
             'credit',
             150.00,
             'Service revenue earned',
             null,
             Carbon::now()
         );
-        
+
         // Commit the transaction group
-        $transactionGroupId = $transaction->commit();
-        
-        // Refresh journals to get updated balances
-        $cashJournal->refresh();
-        $revenueJournal->refresh();
-        
-        // Verify balances
-        // The system calculates balance as debit - credit
-        // For asset accounts (like cash), debits should increase the balance (positive)
-        // For revenue accounts, credits should increase the balance (positive)
-        $this->assertEquals(150.00, $cashJournal->getCurrentBalanceInDollars(), 'Debit should increase asset balance (positive balance)');
-        $this->assertEquals(-150.00, $revenueJournal->getCurrentBalanceInDollars(), 'Credit should increase revenue balance (negative in debit-credit system)');
-        
-        // Verify transaction was recorded
-        $this->assertCount(1, $cashJournal->transactions);
-        $this->assertCount(1, $revenueJournal->transactions);
+        $transaction->commit();
+
+        // Refresh accounts to get updated balances
+        $cashAccount->refresh();
+        $incomeAccount->refresh();
+
+        // Verify balances using the new sign convention:
+        // Asset (debit-normal): balance = debits - credits = 150 - 0 = +150
+        // Income (credit-normal): balance = credits - debits = 150 - 0 = +150
+        $this->assertEquals(150.00, $cashAccount->getCurrentBalanceInDollars(), 'Debit should increase asset balance (positive balance)');
+        $this->assertEquals(150.00, $incomeAccount->getCurrentBalanceInDollars(), 'Credit should increase income balance (positive balance)');
+
+        // Verify entries were recorded
+        $this->assertCount(1, $cashAccount->journalEntries);
+        $this->assertCount(1, $incomeAccount->journalEntries);
     }
-    
+
     public function testExpenseTransaction()
     {
-        // Create ledgers
-        $cashLedger = Ledger::create(['name' => 'Cash', 'type' => 'asset']);
-        $expenseLedger = Ledger::create(['name' => 'Office Supplies', 'type' => 'expense']);
-        $equityLedger = Ledger::create(['name' => 'Owner\'s Equity', 'type' => 'equity']);
-        
-        // Initialize journals with required fields
-        $cashJournal = $cashLedger->journals()->create([
-            'ledger_id' => $cashLedger->id,
+        // Create account types
+        $cashAccountType = AccountType::create(['name' => 'Cash', 'type' => 'asset']);
+        $expenseAccountType = AccountType::create(['name' => 'Office Supplies', 'type' => 'expense']);
+        $equityAccountType = AccountType::create(['name' => 'Owner\'s Equity', 'type' => 'equity']);
+
+        // Initialize accounts linked to their account types
+        $cashAccount = $cashAccountType->accounts()->create([
             'balance' => 0,
             'currency' => 'USD',
-            'memo' => 'Cash Journal',
-            'post_date' => now(),
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
-        
-        $equityJournal = $equityLedger->journals()->create([
-            'ledger_id' => $equityLedger->id,
+
+        $equityAccount = $equityAccountType->accounts()->create([
             'balance' => 0,
             'currency' => 'USD',
-            'memo' => 'Owner\'s Equity',
-            'post_date' => now(),
             'morphed_type' => 'test',
             'morphed_id' => 2,
         ]);
-        
-        $expenseJournal = $expenseLedger->journals()->create([
-            'ledger_id' => $expenseLedger->id,
+
+        $expenseAccount = $expenseAccountType->accounts()->create([
             'balance' => 0,
             'currency' => 'USD',
-            'memo' => 'Office Supplies Expense',
-            'post_date' => now(),
             'morphed_type' => 'test',
             'morphed_id' => 3,
         ]);
-        
+
         // Initial investment: Debit cash, credit owner's equity
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
+
         // Debit cash (asset increases)
         $transaction->addDollarTransaction(
-            $cashJournal,
+            $cashAccount,
             'debit',
             1000.00,
             'Initial investment',
             null,
             Carbon::now()
         );
-        
+
         // Credit owner's equity (equity increases)
         $transaction->addDollarTransaction(
-            $equityJournal,
+            $equityAccount,
             'credit',
             1000.00,
             'Owner\'s equity',
             null,
             Carbon::now()
         );
-        
+
         $transaction->commit();
-        
+
         // Record an expense transaction
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
+
         // Debit expense (expense increases)
         $transaction->addDollarTransaction(
-            $expenseJournal,
+            $expenseAccount,
             'debit',
             75.50,
             'Office supplies purchase',
             null,
             Carbon::now()
         );
-        
+
         // Credit cash (asset decreases)
         $transaction->addDollarTransaction(
-            $cashJournal,
+            $cashAccount,
             'credit',
             75.50,
             'Paid for office supplies',
             null,
             Carbon::now()
         );
-        
+
         $transaction->commit();
-        
-        // Refresh journals
-        $cashJournal->refresh();
-        $expenseJournal->refresh();
-        
-        // Verify ledger balances (not journal balances)
-        // Refresh ledgers to get updated balances
-        $cashLedger->refresh();
-        $expenseLedger->refresh();
-        $equityLedger->refresh();
-        
-        // Check cash ledger balance (asset)
+
+        // Refresh accounts
+        $cashAccount->refresh();
+        $expenseAccount->refresh();
+
+        // Refresh account types to get updated balances
+        $cashAccountType->refresh();
+        $expenseAccountType->refresh();
+        $equityAccountType->refresh();
+
+        // Check cash account type balance (asset, debit-normal):
         // Initial: +1000.00 (debit)
         // Expense: -75.50 (credit)
         // Expected: 1000.00 - 75.50 = 924.50
-        $this->assertEquals(924.50, $cashLedger->getCurrentBalanceInDollars(), 'Cash ledger balance should be reduced by expense');
-        
-        // Check expense ledger balance (expense)
+        $this->assertEquals(924.50, $cashAccountType->getCurrentBalanceInDollars(), 'Cash account type balance should be reduced by expense');
+
+        // Check expense account type balance (expense, debit-normal):
         // Expense: +75.50 (debit)
         // Expected: 75.50
-        $this->assertEquals(75.50, $expenseLedger->getCurrentBalanceInDollars(), 'Expense ledger should show the expense amount');
-        
-        // Check equity ledger balance (equity)
+        $this->assertEquals(75.50, $expenseAccountType->getCurrentBalanceInDollars(), 'Expense account type should show the expense amount');
+
+        // Check equity account type balance (equity, credit-normal):
         // Initial: +1000.00 (credit)
         // No changes
         // Expected: 1000.00
-        $this->assertEquals(1000.00, $equityLedger->getCurrentBalanceInDollars(), 'Equity ledger balance should remain unchanged');
+        $this->assertEquals(1000.00, $equityAccountType->getCurrentBalanceInDollars(), 'Equity account type balance should remain unchanged');
     }
 }

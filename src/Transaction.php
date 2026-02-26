@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Accounting;
 
 use Carbon\Carbon;
-use App\Accounting\Models\Journal;
+use App\Accounting\Models\Account;
 use Money\Money;
 use Money\Currency;
 use App\Accounting\Exceptions\{
@@ -27,7 +27,7 @@ class Transaction
     }
 
     public function addTransaction(
-        Journal $journal,
+        Account $account,
         string $method,
         Money $money,
         ?string $memo = null,
@@ -43,7 +43,7 @@ class Transaction
         }
 
         $this->transactionsPending[] = [
-            'journal' => $journal,
+            'account' => $account,
             'method' => $method,
             'money' => $money,
             'memo' => $memo,
@@ -53,7 +53,7 @@ class Transaction
     }
 
     public function addDollarTransaction(
-        Journal $journal,
+        Account $account,
         string $method,
         float|int|string $value,
         ?string $memo = null,
@@ -62,7 +62,7 @@ class Transaction
     ): void {
         $value = (int) ($value * 100);
         $money = new Money($value, new Currency('USD'));
-        $this->addTransaction($journal, $method, $money, $memo, $referencedObject, $postdate);
+        $this->addTransaction($account, $method, $money, $memo, $referencedObject, $postdate);
     }
 
     public function getTransactionsPending(): array
@@ -79,7 +79,7 @@ class Transaction
             DB::beginTransaction();
 
             foreach ($this->transactionsPending as $transactionPending) {
-                $transaction = $transactionPending['journal']->{$transactionPending['method']}(
+                $entry = $transactionPending['account']->{$transactionPending['method']}(
                     $transactionPending['money'],
                     $transactionPending['memo'],
                     $transactionPending['postdate'],
@@ -87,7 +87,7 @@ class Transaction
                 );
 
                 if ($object = $transactionPending['referencedObject']) {
-                    $transaction->referencesObject($object);
+                    $entry->referencesObject($object);
                 }
             }
 

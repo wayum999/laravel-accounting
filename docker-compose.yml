@@ -11,36 +11,42 @@ services:
       - APP_ENV=local
       - APP_DEBUG=true
       - APP_KEY=
-      - DB_CONNECTION=sqlite
-      - DB_DATABASE=/var/www/database/database.sqlite
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=accounting
+      - DB_USERNAME=sail
+      - DB_PASSWORD=password
     ports:
       - "8000:8000"
     networks:
       - accounting-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     tty: true
 
   # Database for testing and development
-  mysql:
-    image: mysql:8.0
-    container_name: accounting-mysql
+  postgres:
+    image: postgres:18.2
+    container_name: accounting-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: secret
-      MYSQL_DATABASE: accounting
-      MYSQL_USER: sail
-      MYSQL_PASSWORD: password
+      POSTGRES_DB: accounting
+      POSTGRES_USER: sail
+      POSTGRES_PASSWORD: password
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql-data:/var/lib/mysql
+      - postgres-data:/var/lib/postgresql/data
     networks:
       - accounting-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U sail -d accounting"]
       timeout: 5s
       retries: 10
 
 volumes:
-  mysql-data:
+  postgres-data:
     driver: local
 
 networks:

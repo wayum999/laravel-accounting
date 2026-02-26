@@ -6,7 +6,8 @@ namespace Tests\Unit\Exceptions;
 
 use Money\Currency;
 use Money\Money;
-use App\Accounting\Models\Journal;
+use App\Accounting\Models\Account;
+use App\Accounting\Models\JournalEntry;
 use App\Accounting\Transaction;
 use Tests\Unit\TestCase;
 
@@ -18,21 +19,21 @@ class TransactionExceptionTest extends TestCase
 
         $transaction = Transaction::newDoubleEntryTransactionGroup();
 
-        $journal1 = Journal::create([
+        $account1 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
 
-        $journal2 = Journal::create([
+        $account2 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
         ]);
 
         $money = new Money(1000, new Currency('USD'));
-        $transaction->addTransaction($journal1, 'debit', $money, 'Test debit');
-        $transaction->addTransaction($journal2, 'credit', $money, 'Test credit');
+        $transaction->addTransaction($account1, 'debit', $money, 'Test debit');
+        $transaction->addTransaction($account2, 'credit', $money, 'Test credit');
 
         // This should succeed and return a UUID
         $result = $transaction->commit();
@@ -47,21 +48,21 @@ class TransactionExceptionTest extends TestCase
 
         $transaction = Transaction::newDoubleEntryTransactionGroup();
 
-        $journal1 = Journal::create([
+        $account1 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 3,
         ]);
 
-        $journal2 = Journal::create([
+        $account2 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 4,
         ]);
 
         $money = new Money(1500, new Currency('USD'));
-        $transaction->addTransaction($journal1, 'debit', $money, 'Test debit', $journal2);
-        $transaction->addTransaction($journal2, 'credit', $money, 'Test credit', $journal1);
+        $transaction->addTransaction($account1, 'debit', $money, 'Test debit', $account2);
+        $transaction->addTransaction($account2, 'credit', $money, 'Test credit', $account1);
 
         // This should succeed and handle referenced objects
         $result = $transaction->commit();
@@ -69,12 +70,12 @@ class TransactionExceptionTest extends TestCase
         $this->assertIsString($result);
 
         // Verify the referenced objects were set
-        $transactions = \App\Accounting\Models\JournalTransaction::where('transaction_group', $result)->get();
-        $this->assertCount(2, $transactions);
+        $entries = JournalEntry::where('transaction_group', $result)->get();
+        $this->assertCount(2, $entries);
 
-        foreach ($transactions as $tx) {
-            $this->assertNotNull($tx->ref_class);
-            $this->assertNotNull($tx->ref_class_id);
+        foreach ($entries as $entry) {
+            $this->assertNotNull($entry->ref_class);
+            $this->assertNotNull($entry->ref_class_id);
         }
     }
 }

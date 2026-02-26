@@ -35,6 +35,4 @@ abstract class TestCase extends BaseTestCase
         // Load and run migrations
         $this->loadMigrationsFrom(__DIR__ . '/../src/migrations');
     }
-
-
 }

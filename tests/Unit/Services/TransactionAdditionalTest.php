@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use Tests\Unit\TestCase;
-use App\Accounting\Models\Journal;
+use App\Accounting\Models\Account;
 use App\Accounting\Transaction;
 use App\Accounting\Exceptions\TransactionCouldNotBeProcessed;
 use Money\Money;
@@ -20,28 +20,28 @@ class TransactionAdditionalTest extends TestCase
         // This tests the private verifyTransactionCreditsEqualDebits method indirectly
         // by creating a transaction where credits != debits
         $this->expectException(\App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
-        
+
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
-        $journal1 = Journal::create([
+
+        $account1 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
 
-        $journal2 = Journal::create([
+        $account2 = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
         ]);
-        
+
         // Add unbalanced transactions
         $money1 = new Money(1000, new Currency('USD'));
         $money2 = new Money(1500, new Currency('USD')); // Different amount!
-        
-        $transaction->addTransaction($journal1, 'debit', $money1, 'Test debit');
-        $transaction->addTransaction($journal2, 'credit', $money2, 'Test credit');
-        
+
+        $transaction->addTransaction($account1, 'debit', $money1, 'Test debit');
+        $transaction->addTransaction($account2, 'credit', $money2, 'Test credit');
+
         // This should call verifyTransactionCreditsEqualDebits and throw exception
         $transaction->commit();
     }
@@ -49,20 +49,20 @@ class TransactionAdditionalTest extends TestCase
     public function test_commit_empty_transactions(): void
     {
         $this->expectException(\App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
-        
+
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
+
         // Empty transactions should have credits=0 and debits=0, which should pass verification
         // Let's add a single transaction to make it unbalanced
-        $journal = Journal::create([
+        $account = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
-        
+
         $money = new Money(1000, new Currency('USD'));
-        $transaction->addTransaction($journal, 'credit', $money, 'Unbalanced credit');
-        
+        $transaction->addTransaction($account, 'credit', $money, 'Unbalanced credit');
+
         // Now it's unbalanced (credit without matching debit)
         $transaction->commit();
     }
@@ -70,40 +70,40 @@ class TransactionAdditionalTest extends TestCase
     public function test_add_transaction_with_all_parameters(): void
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
-        $journal = Journal::create([
+
+        $account = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
 
         // Create a reference object
-        $referenceJournal = Journal::create([
+        $referenceAccount = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
         ]);
-        
+
         $money = new Money(2000, new Currency('USD'));
         $postDate = Carbon::now()->subDays(1);
-        
+
         // Test with all parameters including reference object and post date
         $transaction->addTransaction(
-            $journal,
+            $account,
             'credit',
             $money,
             'Full parameter test',
-            $referenceJournal,
+            $referenceAccount,
             $postDate
         );
-        
+
         $pending = $transaction->getTransactionsPending();
-        
+
         $this->assertCount(1, $pending);
         $this->assertEquals('credit', $pending[0]['method']);
         $this->assertEquals(2000, $pending[0]['money']->getAmount());
         $this->assertEquals('Full parameter test', $pending[0]['memo']);
-        $this->assertTrue($pending[0]['referencedObject']->is($referenceJournal));
+        $this->assertTrue($pending[0]['referencedObject']->is($referenceAccount));
         $this->assertEquals($postDate, $pending[0]['postdate']);
     }
 
@@ -111,13 +111,13 @@ class TransactionAdditionalTest extends TestCase
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
 
-        $journal = Journal::create([
+        $account = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
         ]);
 
-        $referenceJournal = Journal::create([
+        $referenceAccount = Account::create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
@@ -127,11 +127,11 @@ class TransactionAdditionalTest extends TestCase
 
         // Test addDollarTransaction with all parameters
         $transaction->addDollarTransaction(
-            $journal,
+            $account,
             'debit',
             45.67,
             'Dollar transaction with all params',
-            $referenceJournal,
+            $referenceAccount,
             $postDate
         );
 
@@ -141,7 +141,7 @@ class TransactionAdditionalTest extends TestCase
         $this->assertEquals('debit', $pending[0]['method']);
         $this->assertEquals(4567, $pending[0]['money']->getAmount()); // $45.67 = 4567 cents
         $this->assertEquals('Dollar transaction with all params', $pending[0]['memo']);
-        $this->assertTrue($pending[0]['referencedObject']->is($referenceJournal));
+        $this->assertTrue($pending[0]['referencedObject']->is($referenceAccount));
         $this->assertEquals($postDate, $pending[0]['postdate']);
     }
 }

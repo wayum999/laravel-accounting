@@ -3,9 +3,9 @@
 namespace Tests\Functional;
 
 use Tests\TestCase;
-use App\Accounting\Models\Ledger;
-use App\Accounting\Models\Journal;
-use App\Accounting\Enums\LedgerType;
+use App\Accounting\Models\AccountType;
+use App\Accounting\Models\Account;
+use App\Accounting\Enums\AccountCategory;
 use App\Accounting\Transaction;
 use Money\Money;
 use Money\Currency;
@@ -15,14 +15,14 @@ class DateTimeEdgeCaseTest extends TestCase
 {
     public function test_date_time_edge_cases()
     {
-        // Create a test ledger
-        $ledger = Ledger::create([
-            'name' => 'Test Ledger',
-            'type' => LedgerType::ASSET,
+        // Create a test account type
+        $accountType = AccountType::create([
+            'name' => 'Test Account Type',
+            'type' => AccountCategory::ASSET,
         ]);
 
-        // Create a journal for the ledger
-        $journal = $ledger->journals()->create([
+        // Create an account for the account type
+        $account = $accountType->accounts()->create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
@@ -30,34 +30,34 @@ class DateTimeEdgeCaseTest extends TestCase
 
         // Define test dates and times
         $testDate = Carbon::create(2025, 6, 15, 0, 0, 0, 'UTC');
-        
+
         // Test cases with different date/time combinations
         $testCases = [
             // Same day, different times
             ['date' => (clone $testDate), 'amount' => 10000, 'desc' => 'Midnight'],
             ['date' => (clone $testDate)->addSecond(), 'amount' => 20000, 'desc' => '1 second after midnight'],
-            
+
             // Around month boundaries
             ['date' => (clone $testDate)->endOfMonth(), 'amount' => 30000, 'desc' => 'End of month'],
             ['date' => (clone $testDate)->endOfMonth()->addSecond(), 'amount' => 40000, 'desc' => '1 second after end of month'],
             ['date' => (clone $testDate)->endOfMonth()->subSecond(), 'amount' => 50000, 'desc' => '1 second before end of month'],
-            
+
             // Around year boundaries
             ['date' => Carbon::create(2024, 12, 31, 23, 59, 59, 'UTC'), 'amount' => 60000, 'desc' => '1 second before new year'],
             ['date' => Carbon::create(2025, 1, 1, 0, 0, 0, 'UTC'), 'amount' => 70000, 'desc' => 'New year'],
-            
+
             // Leap seconds (simulated)
             ['date' => Carbon::create(2025, 6, 15, 23, 59, 59, 'UTC'), 'amount' => 80000, 'desc' => '1 second before next day'],
             ['date' => Carbon::create(2025, 6, 16, 0, 0, 0, 'UTC'), 'amount' => 90000, 'desc' => 'Next day'],
         ];
 
-        // Create a second ledger and journal for the offsetting entries (e.g., a liability account)
-        $offsetLedger = Ledger::create([
-            'name' => 'Offset Liability Ledger',
-            'type' => LedgerType::LIABILITY,
+        // Create a second account type and account for the offsetting entries (liability)
+        $offsetAccountType = AccountType::create([
+            'name' => 'Offset Liability Account Type',
+            'type' => AccountCategory::LIABILITY,
         ]);
 
-        $offsetJournal = $offsetLedger->journals()->create([
+        $offsetAccount = $offsetAccountType->accounts()->create([
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
@@ -66,18 +66,18 @@ class DateTimeEdgeCaseTest extends TestCase
         // Record test transactions with proper double-entry accounting
         foreach ($testCases as $case) {
             $transaction = new Transaction();
-            // Debit the test journal (increases asset balance) - pass post_date as 6th parameter
+            // Debit the test account (increases asset balance) - pass post_date as 6th parameter
             $transaction->addDollarTransaction(
-                journal: $journal,
+                account: $account,
                 method: 'debit',
                 value: $case['amount'] / 100,
                 memo: $case['desc'],
                 referencedObject: null, // No reference object
                 postdate: $case['date']
             );
-            // Credit the offset journal (e.g., a liability)
+            // Credit the offset account (liability)
             $transaction->addDollarTransaction(
-                journal: $offsetJournal,
+                account: $offsetAccount,
                 method: 'credit',
                 value: $case['amount'] / 100,
                 memo: 'Offset for: ' . $case['desc'],
@@ -89,13 +89,13 @@ class DateTimeEdgeCaseTest extends TestCase
 
         // Use a future date to include all transactions in balance calculations
         $futureDate = Carbon::now()->addYear();
-        
-        // Verify total balance (should be +4500.00 for asset account with debits)
-        $this->assertEquals(450000, $journal->getBalanceOn($futureDate)->getAmount(), 'Total balance should be +4500.00');
+
+        // Verify total balance (asset account, debit-normal: debits - credits = +4500.00)
+        $this->assertEquals(450000, $account->getBalanceOn($futureDate)->getAmount(), 'Total balance should be +4500.00');
 
         // Verify balance at test date + 1 hour (should only include transactions up to that point)
         $balanceDate1 = $testDate->copy()->addHour();
-        $balanceAtHour1 = $journal->getBalanceOn($balanceDate1)->getAmount();
+        $balanceAtHour1 = $account->getBalanceOn($balanceDate1)->getAmount();
         echo "Balance at {$balanceDate1}: {$balanceAtHour1}\n";
 
         $this->assertEquals(
@@ -109,7 +109,7 @@ class DateTimeEdgeCaseTest extends TestCase
         $balanceDate2 = $endOfMonth->copy()->addDay();
         $this->assertEquals(
             450000, // All transactions up to 2025-07-01
-            $journal->getBalanceOn($balanceDate2)->getAmount(),
+            $account->getBalanceOn($balanceDate2)->getAmount(),
             'Balance after end of month should be +4500.00'
         );
 
@@ -117,29 +117,30 @@ class DateTimeEdgeCaseTest extends TestCase
         $balanceDate3 = $testDate->copy()->addYear();
         $this->assertEquals(
             450000, // All transactions
-            $journal->getBalanceOn($balanceDate3)->getAmount(),
+            $account->getBalanceOn($balanceDate3)->getAmount(),
             'Balance after 1 year should be +4500.00'
         );
 
         // Verify final balance
         $this->assertEquals(
             450000,
-            $journal->getBalanceOn($futureDate)->getAmount(),
+            $account->getBalanceOn($futureDate)->getAmount(),
             'Final balance should be +4500.00'
         );
 
         // Verify daily totals (checking debits since all transactions are debits)
         $this->assertEquals(
             (10000 + 20000 + 80000) / 100, // All transactions on the test date (converted to dollars)
-            $journal->getDollarsDebitedOn($testDate),
+            $account->getDollarsDebitedOn($testDate),
             'Total debited on test date should be 1100.00'
         );
 
-        // Verify ledger balance matches journal balance
+        // Verify account type balance matches account balance
+        // Both are asset (debit-normal), so both return debits - credits
         $this->assertEquals(
-            $journal->getBalance()->getAmount(),
-            $ledger->getCurrentBalance('USD')->getAmount(),
-            'Ledger balance should match journal balance'
+            $account->getBalance()->getAmount(),
+            $accountType->getCurrentBalance('USD')->getAmount(),
+            'Account type balance should match account balance'
         );
     }
 }

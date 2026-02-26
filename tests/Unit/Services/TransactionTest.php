@@ -8,8 +8,8 @@ use Carbon\Carbon;
 use Money\Money;
 use Money\Currency;
 use Illuminate\Support\Str;
-use App\Accounting\Models\Journal;
-use App\Accounting\Models\JournalTransaction;
+use App\Accounting\Models\Account;
+use App\Accounting\Models\JournalEntry;
 use App\Accounting\Transaction;
 use App\Accounting\Exceptions\InvalidJournalEntryValue;
 use App\Accounting\Exceptions\InvalidJournalMethod;
@@ -29,8 +29,8 @@ class TransactionTest extends TestCase
     public function testAddTransactionWithCredit()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 1,
@@ -38,7 +38,7 @@ class TransactionTest extends TestCase
 
         $money = new Money(1000, new Currency('USD'));
 
-        $transaction->addTransaction($journal, 'credit', $money, 'Test credit');
+        $transaction->addTransaction($account, 'credit', $money, 'Test credit');
 
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
@@ -50,8 +50,8 @@ class TransactionTest extends TestCase
     public function testAddTransactionWithDebit()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 2,
@@ -59,7 +59,7 @@ class TransactionTest extends TestCase
 
         $money = new Money(1500, new Currency('USD'));
 
-        $transaction->addTransaction($journal, 'debit', $money, 'Test debit');
+        $transaction->addTransaction($account, 'debit', $money, 'Test debit');
 
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
@@ -70,47 +70,47 @@ class TransactionTest extends TestCase
     public function testAddTransactionWithInvalidMethod()
     {
         $this->expectException(InvalidJournalMethod::class);
-        
+
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 3,
         ]);
-        
+
         $money = new Money(1000, new Currency('USD'));
-        $transaction->addTransaction($journal, 'invalid_method', $money);
+        $transaction->addTransaction($account, 'invalid_method', $money);
     }
 
     public function testAddTransactionWithZeroAmount()
     {
         $this->expectException(InvalidJournalEntryValue::class);
-        
+
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 4,
         ]);
-        
+
         $money = new Money(0, new Currency('USD'));
-        $transaction->addTransaction($journal, 'credit', $money);
+        $transaction->addTransaction($account, 'credit', $money);
     }
 
     public function testAddDollarTransaction()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 5,
         ]);
-        
-        $transaction->addDollarTransaction($journal, 'credit', 10.50, 'Test dollar transaction');
-        
+
+        $transaction->addDollarTransaction($account, 'credit', 10.50, 'Test dollar transaction');
+
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
         $this->assertEquals(1050, $transactions[0]['money']->getAmount()); // $10.50 should be 1050 cents
@@ -119,19 +119,19 @@ class TransactionTest extends TestCase
     public function testCommitWithUnbalancedTransactions()
     {
         $this->expectException(DebitsAndCreditsDoNotEqual::class);
-        
+
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'balance' => 0,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 6,
         ]);
-        
+
         $money = new Money(1000, new Currency('USD'));
-        $transaction->addTransaction($journal, 'credit', $money);
-        
+        $transaction->addTransaction($account, 'credit', $money);
+
         // Only a credit, no matching debit
         $transaction->commit();
     }
@@ -139,49 +139,49 @@ class TransactionTest extends TestCase
     public function testCommitWithBalancedTransactions()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
-        // Create two journals
-        $journal1 = Journal::create([
-            'ledger_id' => 1,
+
+        // Create two accounts
+        $account1 = Account::create([
+            'account_type_id' => null,
             'balance' => 0,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 7,
         ]);
 
-        $journal2 = Journal::create([
-            'ledger_id' => 2,
+        $account2 = Account::create([
+            'account_type_id' => null,
             'balance' => 0,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 8,
         ]);
-        
+
         $money = new Money(1000, new Currency('USD'));
-        $transaction->addTransaction($journal1, 'debit', $money, 'Test debit');
-        $transaction->addTransaction($journal2, 'credit', $money, 'Test credit');
-        
+        $transaction->addTransaction($account1, 'debit', $money, 'Test debit');
+        $transaction->addTransaction($account2, 'credit', $money, 'Test credit');
+
         $transactionGroupId = $transaction->commit();
-        
+
         // Verify transaction group ID is a valid UUID
         $this->assertTrue(Str::isUuid($transactionGroupId));
-        
-        // Refresh journals to get updated balances
-        $journal1->refresh();
-        $journal2->refresh();
-        
-        // Verify journal balances were updated
-        // In this implementation, debits decrease the balance and credits increase it
-        // This is because getBalance() calculates as sum('debit') - sum('credit')
-        $this->assertEquals(1000, $journal1->balance->getAmount(), 'Debit should increase balance');
-        $this->assertEquals(-1000, $journal2->balance->getAmount(), 'Credit should decrease balance');
+
+        // Refresh accounts to get updated balances
+        $account1->refresh();
+        $account2->refresh();
+
+        // Without an account type assigned, getBalance() falls back to debit-normal (debits - credits).
+        // account1 received a debit of 1000: balance = 1000 - 0 = 1000
+        // account2 received a credit of 1000: balance = 0 - 1000 = -1000
+        $this->assertEquals(1000, $account1->balance->getAmount(), 'Debit should increase balance');
+        $this->assertEquals(-1000, $account2->balance->getAmount(), 'Credit should decrease balance');
     }
 
     public function testAddTransactionWithPostDate()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 9,
@@ -189,8 +189,8 @@ class TransactionTest extends TestCase
 
         $money = new Money(1200, new Currency('USD'));
         $postDate = Carbon::now()->subDays(5);
-        
-        $transaction->addTransaction($journal, 'credit', $money, 'Test with post date', null, $postDate);
+
+        $transaction->addTransaction($account, 'credit', $money, 'Test with post date', null, $postDate);
 
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
@@ -200,16 +200,16 @@ class TransactionTest extends TestCase
     public function testAddDollarTransactionWithPostDate()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 10,
         ]);
-        
+
         $postDate = Carbon::now()->subDays(2);
-        $transaction->addDollarTransaction($journal, 'debit', 25.75, 'Dollar transaction with date', null, $postDate);
-        
+        $transaction->addDollarTransaction($account, 'debit', 25.75, 'Dollar transaction with date', null, $postDate);
+
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
         $this->assertEquals(2575, $transactions[0]['money']->getAmount()); // $25.75 = 2575 cents
@@ -219,46 +219,46 @@ class TransactionTest extends TestCase
     public function testCommitWithReferencedObjects()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        
-        // Create journals
-        $journal1 = Journal::create([
-            'ledger_id' => 1,
+
+        // Create accounts
+        $account1 = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 11,
         ]);
 
-        $journal2 = Journal::create([
-            'ledger_id' => 2,
+        $account2 = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 12,
         ]);
-        
-        // Create a reference object (using journal2 as reference)
-        $referenceObject = $journal2;
-        
+
+        // Create a reference object (using account2 as reference)
+        $referenceObject = $account2;
+
         $money = new Money(1500, new Currency('USD'));
-        $transaction->addTransaction($journal1, 'debit', $money, 'Referenced debit', $referenceObject);
-        $transaction->addTransaction($journal2, 'credit', $money, 'Referenced credit');
-        
+        $transaction->addTransaction($account1, 'debit', $money, 'Referenced debit', $referenceObject);
+        $transaction->addTransaction($account2, 'credit', $money, 'Referenced credit');
+
         $transactionGroupId = $transaction->commit();
-        
+
         // Verify transaction was created with reference
-        $createdTransaction = \App\Accounting\Models\JournalTransaction::where('transaction_group', $transactionGroupId)
-            ->where('journal_id', $journal1->id)
+        $createdEntry = JournalEntry::where('transaction_group', $transactionGroupId)
+            ->where('account_id', $account1->id)
             ->first();
-            
-        $this->assertNotNull($createdTransaction);
-        $this->assertEquals(get_class($referenceObject), $createdTransaction->ref_class);
-        $this->assertEquals($referenceObject->id, $createdTransaction->ref_class_id);
+
+        $this->assertNotNull($createdEntry);
+        $this->assertEquals(get_class($referenceObject), $createdEntry->ref_class);
+        $this->assertEquals($referenceObject->id, $createdEntry->ref_class_id);
     }
 
     public function testGetTransactionsPendingReturnsCorrectStructure()
     {
         $transaction = Transaction::newDoubleEntryTransactionGroup();
-        $journal = Journal::create([
-            'ledger_id' => 1,
+        $account = Account::create([
+            'account_type_id' => null,
             'currency' => 'USD',
             'morphed_type' => 'test',
             'morphed_id' => 13,
@@ -266,22 +266,22 @@ class TransactionTest extends TestCase
 
         $money = new Money(3000, new Currency('USD'));
         $postDate = Carbon::now();
-        $referenceObject = $journal; // Self-reference for testing
-        
-        $transaction->addTransaction($journal, 'credit', $money, 'Structured test', $referenceObject, $postDate);
+        $referenceObject = $account; // Self-reference for testing
+
+        $transaction->addTransaction($account, 'credit', $money, 'Structured test', $referenceObject, $postDate);
 
         $transactions = $transaction->getTransactionsPending();
         $this->assertCount(1, $transactions);
-        
+
         $pendingTransaction = $transactions[0];
-        $this->assertArrayHasKey('journal', $pendingTransaction);
+        $this->assertArrayHasKey('account', $pendingTransaction);
         $this->assertArrayHasKey('method', $pendingTransaction);
         $this->assertArrayHasKey('money', $pendingTransaction);
         $this->assertArrayHasKey('memo', $pendingTransaction);
         $this->assertArrayHasKey('postdate', $pendingTransaction);
         $this->assertArrayHasKey('referencedObject', $pendingTransaction);
 
-        $this->assertTrue($pendingTransaction['journal']->is($journal));
+        $this->assertTrue($pendingTransaction['account']->is($account));
         $this->assertEquals('credit', $pendingTransaction['method']);
         $this->assertEquals(3000, $pendingTransaction['money']->getAmount());
         $this->assertEquals('Structured test', $pendingTransaction['memo']);

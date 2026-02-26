@@ -9,7 +9,7 @@ use App\Accounting\Exceptions\BaseException;
 use App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
 use App\Accounting\Exceptions\InvalidJournalEntryValue;
 use App\Accounting\Exceptions\InvalidJournalMethod;
-use App\Accounting\Exceptions\JournalAlreadyExists;
+use App\Accounting\Exceptions\AccountAlreadyExists;
 use App\Accounting\Exceptions\TransactionCouldNotBeProcessed;
 
 class ExceptionsTest extends TestCase
@@ -34,7 +34,7 @@ class ExceptionsTest extends TestCase
     public function test_base_exception_with_custom_message(): void
     {
         $exception = new BaseException('Custom error message');
-        
+
         $this->assertEquals('Custom error message', $exception->getMessage());
         $this->assertInstanceOf(\Exception::class, $exception);
     }
@@ -42,14 +42,14 @@ class ExceptionsTest extends TestCase
     public function test_base_exception_with_default_message(): void
     {
         $exception = new BaseException();
-        
+
         $this->assertEquals('', $exception->getMessage());
     }
 
     public function test_debits_and_credits_do_not_equal_exception(): void
     {
         $exception = new DebitsAndCreditsDoNotEqual('1000');
-        
+
         $expectedMessage = 'Double Entry requires that debits equal credits.1000';
         $this->assertEquals($expectedMessage, $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
@@ -58,7 +58,7 @@ class ExceptionsTest extends TestCase
     public function test_invalid_journal_entry_value_exception(): void
     {
         $exception = new InvalidJournalEntryValue();
-        
+
         $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
@@ -66,31 +66,31 @@ class ExceptionsTest extends TestCase
     public function test_invalid_journal_method_exception(): void
     {
         $exception = new InvalidJournalMethod();
-        
+
         $this->assertEquals('Journal methods must be credit or debit', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
 
-    public function test_journal_already_exists_exception(): void
+    public function test_account_already_exists_exception(): void
     {
-        $exception = new JournalAlreadyExists();
-        
-        $this->assertEquals('Journal already exists.', $exception->getMessage());
+        $exception = new AccountAlreadyExists();
+
+        $this->assertEquals('Account already exists.', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
 
-    public function test_journal_already_exists_exception_with_custom_message(): void
+    public function test_account_already_exists_exception_with_custom_message(): void
     {
-        $exception = new JournalAlreadyExists('Custom journal exists message');
-        
-        $this->assertEquals('Custom journal exists message', $exception->getMessage());
+        $exception = new AccountAlreadyExists('Custom account exists message');
+
+        $this->assertEquals('Custom account exists message', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
 
     public function test_invalid_journal_entry_value_with_custom_message(): void
     {
         $exception = new InvalidJournalEntryValue('Custom entry value message');
-        
+
         $this->assertEquals('Custom entry value message', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
@@ -98,7 +98,7 @@ class ExceptionsTest extends TestCase
     public function test_invalid_journal_method_with_custom_message(): void
     {
         $exception = new InvalidJournalMethod('Custom method message');
-        
+
         $this->assertEquals('Custom method message', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
@@ -106,7 +106,7 @@ class ExceptionsTest extends TestCase
     public function test_transaction_could_not_be_processed_exception(): void
     {
         $exception = new TransactionCouldNotBeProcessed('Database error');
-        
+
         $expectedMessage = 'Double Entry Transaction could not be processed. Database error';
         $this->assertEquals($expectedMessage, $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
@@ -130,12 +130,12 @@ class ExceptionsTest extends TestCase
         $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
-    public function test_journal_already_exists_exception_coverage(): void
+    public function test_account_already_exists_exception_coverage(): void
     {
         // Test the exception class to ensure it's covered
-        $exception = new JournalAlreadyExists();
+        $exception = new AccountAlreadyExists();
 
-        $this->assertEquals('Journal already exists.', $exception->getMessage());
+        $this->assertEquals('Account already exists.', $exception->getMessage());
         $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
@@ -159,12 +159,12 @@ class ExceptionsTest extends TestCase
             $this->assertEquals('Journal methods must be credit or debit', $e->getMessage());
         }
 
-        // Test JournalAlreadyExists by throwing and catching
+        // Test AccountAlreadyExists by throwing and catching
         try {
-            throw new JournalAlreadyExists();
-        } catch (JournalAlreadyExists $e) {
+            throw new AccountAlreadyExists();
+        } catch (AccountAlreadyExists $e) {
             $this->assertInstanceOf(BaseException::class, $e);
-            $this->assertEquals('Journal already exists.', $e->getMessage());
+            $this->assertEquals('Account already exists.', $e->getMessage());
         }
     }
 
