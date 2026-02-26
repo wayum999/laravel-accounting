@@ -1,10 +1,5 @@
 # Laravel Accounting
 
-[![Tests](https://github.com/williamlettieri/accounting/workflows/Tests/badge.svg)](https://github.com/williamlettieri/accounting/actions)
-[![PHP Version](https://img.shields.io/badge/php-8.1%2B-blue.svg)](https://packagist.org/packages/williamlettieri/accounting)
-[![Laravel Version](https://img.shields.io/badge/laravel-8%2B-red.svg)](https://packagist.org/packages/williamlettieri/accounting)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-
 A double-entry accounting package for Laravel. Built on proper accounting principles — correct debit/credit behavior, a General Journal, a General Ledger, and non-posting transaction support for quotes, proposals, and purchase orders.
 
 ## Contents
