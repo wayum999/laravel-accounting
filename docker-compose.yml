@@ -28,7 +28,7 @@ services:
 
   # Database for testing and development
   postgres:
-    image: postgres:18.2
+    image: postgres:18
     container_name: accounting-postgres
     environment:
       POSTGRES_DB: accounting

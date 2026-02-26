@@ -59,7 +59,7 @@ class ExceptionsTest extends TestCase
     {
         $exception = new InvalidJournalEntryValue();
 
-        $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
+        $this->assertEquals('Journal entry values must be a positive value', $exception->getMessage());
         $this->assertInstanceOf(BaseException::class, $exception);
     }
 
@@ -117,7 +117,7 @@ class ExceptionsTest extends TestCase
         // Test the exception class to ensure it's covered
         $exception = new InvalidJournalEntryValue();
 
-        $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
+        $this->assertEquals('Journal entry values must be a positive value', $exception->getMessage());
         $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
@@ -148,7 +148,7 @@ class ExceptionsTest extends TestCase
             throw new InvalidJournalEntryValue();
         } catch (InvalidJournalEntryValue $e) {
             $this->assertInstanceOf(BaseException::class, $e);
-            $this->assertEquals('Journal transaction entries must be a positive value', $e->getMessage());
+            $this->assertEquals('Journal entry values must be a positive value', $e->getMessage());
         }
 
         // Test InvalidJournalMethod by throwing and catching

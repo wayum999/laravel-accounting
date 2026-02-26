@@ -58,12 +58,16 @@ class AccountType extends Model
      */
     public function getCurrentBalance(string $currency): Money
     {
+        // Use query builder (not collection) to always get fresh data from DB
+        $debitTotal = $this->journalEntries()->sum('debit');
+        $creditTotal = $this->journalEntries()->sum('credit');
+
         $balance = match ($this->type) {
             AccountCategory::ASSET,
             AccountCategory::EXPENSE =>
-                $this->journalEntries->sum('debit') - $this->journalEntries->sum('credit'),
+                $debitTotal - $creditTotal,
             default => // LIABILITY, EQUITY, INCOME
-                $this->journalEntries->sum('credit') - $this->journalEntries->sum('debit'),
+                $creditTotal - $debitTotal,
         };
 
         return new Money($balance, new Currency($currency));

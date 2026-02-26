@@ -17,7 +17,7 @@ class RemainingExceptionsCoverageTest extends TestCase
         $exception = new InvalidJournalEntryValue();
 
         $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
-        $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
+        $this->assertEquals('Journal entry values must be a positive value', $exception->getMessage());
     }
 
     public function test_invalid_journal_method_exception_instantiation(): void
