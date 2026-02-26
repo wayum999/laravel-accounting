@@ -6,7 +6,7 @@ services:
     container_name: accounting-app
     working_dir: /var/www
     volumes:
-      - .:/var/www
+      - ".:/var/www"
     environment:
       - APP_ENV=local
       - APP_DEBUG=true

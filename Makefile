@@ -8,26 +8,26 @@ COMPOSER = $(DOCKER_COMPOSE) run --rm $(DOCKER_SERVICE) composer
 
 ## —— Docker Compose ————————————————————————————————————————————————————————————
 up: ## Start all containers in the background
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up -d
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" up -d
 
 up-verbose: ## Start all containers in the foreground
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" up
 
 down: ## Stop and remove all containers
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" down
 
 down-v: ## Stop and remove all containers and volumes
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down -v
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" down -v
 
 build: ## Rebuild the Docker containers
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build --no-cache
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" build --no-cache
 
 ssh: up ## Get shell access to the container
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) exec $(DOCKER_SERVICE) bash
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" exec $(DOCKER_SERVICE) bash
 
 ## —— Composer ——————————————————————————————————————————————————————————————————
 composer: ## Run composer commands
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) run --rm $(DOCKER_SERVICE) composer $(filter-out $@,$(MAKECMDGOALS))
+	@$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) composer $(filter-out $@,$(MAKECMDGOALS))
 
 install: ## Install dependencies
 	@$(COMPOSER) install
@@ -37,10 +37,10 @@ update: ## Update dependencies
 
 ## —— Testing ———————————————————————————————————————————————————————————————————
 test: ## Run all tests with coverage report
-	$(DOCKER_COMPOSE) run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && XDEBUG_MODE=coverage ./vendor/bin/phpunit --testdox --coverage-text"
+	$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && XDEBUG_MODE=coverage ./vendor/bin/phpunit --testdox --coverage-text"
 
 test-coverage: ## Generate HTML test coverage report
-	$(DOCKER_COMPOSE) run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && XDEBUG_MODE=coverage ./vendor/bin/phpunit --coverage-html=coverage"
+	$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && XDEBUG_MODE=coverage ./vendor/bin/phpunit --coverage-html=coverage"
 
 coverage: test-coverage ## Alias for test-coverage
 
@@ -54,7 +54,7 @@ open-coverage: test-coverage ## Open the coverage report in default browser
 	fi
 
 test-phpunit: ## Run PHPUnit tests with optional arguments
-	$(DOCKER_COMPOSE) run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && ./vendor/bin/phpunit $(filter-out $@,$(MAKECMDGOALS))"
+	$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && ./vendor/bin/phpunit $(filter-out $@,$(MAKECMDGOALS))"
 
 ## —— Help ——————————————————————————————————————————————————————————————————————
 help: ## Display this help screen
