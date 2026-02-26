@@ -56,6 +56,11 @@ open-coverage: test-coverage ## Open the coverage report in default browser
 test-phpunit: ## Run PHPUnit tests with optional arguments
 	$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && ./vendor/bin/phpunit $(filter-out $@,$(MAKECMDGOALS))"
 
+test-file: ## Run a specific test file, handles absolute paths from IDEs
+	@$(eval ARGS := $(filter-out $@,$(MAKECMDGOALS)))
+	@$(eval CLEAN_ARGS := $(subst $(CURDIR)/,,$(ARGS)))
+	$(DOCKER_COMPOSE) -f "$(DOCKER_COMPOSE_FILE)" run --rm $(DOCKER_SERVICE) bash -c "cd /var/www && ./vendor/bin/phpunit \"$(CLEAN_ARGS)\""
+
 ## —— Help ——————————————————————————————————————————————————————————————————————
 help: ## Display this help screen
 	@echo "\n\033[33mUsage:\033[0m\n  make [command] [arguments...]\n"

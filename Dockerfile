@@ -35,7 +35,6 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     gd \
     intl \
     mbstring \
-    opcache \
     pdo \
     pdo_mysql \
     pdo_pgsql \

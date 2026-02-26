@@ -240,27 +240,43 @@ class CompanyFinancialScenarioTest extends TestCase
         // (6,000,000 + 2,000,000 + 500,000) - (3,000,000 + 1,500,000 + 500,000 + 200,000 + 100,000 + 100,000) = 3,100,000
         $this->assertEquals(3100000, $netIncome, 'Net income calculation is incorrect');
 
-        // Close all temporary accounts to retained earnings in one transaction (all amounts in cents).
+        // Close all temporary accounts to retained earnings in one transaction.
+        // The recordTransaction helper multiplies 'amount' by 100 when constructing Money objects,
+        // so these amounts use the same unit as the business transactions above (dollars * 100).
         // Income accounts are credit-normal: to zero them out, debit them.
         // Expense accounts are debit-normal: to zero them out, credit them.
         // Net effect to retained earnings is a credit for the net income amount.
+        //
+        // The amounts in cents (as stored) are shown in comments for clarity.
+        // product_sales credit was 60000 -> stored 6,000,000 cents
+        // service_revenue credit was 20000 -> stored 2,000,000 cents
+        // sale_of_asset credit was 5000 -> stored 500,000 cents
+        // cogs debit was 30000 -> stored 3,000,000 cents
+        // salaries debit was 15000 -> stored 1,500,000 cents
+        // rent debit was 5000 -> stored 500,000 cents
+        // utilities debit was 2000 -> stored 200,000 cents
+        // depreciation debit was 1000 -> stored 100,000 cents
+        // inventory_shrinkage debit was 1000 -> stored 100,000 cents
+        // net income: (60000 + 20000 + 5000) - (30000 + 15000 + 5000 + 2000 + 1000 + 1000) = 31000
+        $netIncomeInHelperUnits = $netIncome / 100; // convert cents to helper units
+
         $this->recordTransaction([
             // Close income accounts (debit to zero them out, credit-normal)
-            ['account' => $accounts['product_sales'], 'method' => 'debit', 'amount' => 6000000, 'memo' => 'Close product sales income'],
-            ['account' => $accounts['service_revenue'], 'method' => 'debit', 'amount' => 2000000, 'memo' => 'Close service revenue'],
-            ['account' => $accounts['sale_of_asset'], 'method' => 'debit', 'amount' => 500000, 'memo' => 'Close gain on sale'],
+            ['account' => $accounts['product_sales'], 'method' => 'debit', 'amount' => 60000, 'memo' => 'Close product sales income'],
+            ['account' => $accounts['service_revenue'], 'method' => 'debit', 'amount' => 20000, 'memo' => 'Close service revenue'],
+            ['account' => $accounts['sale_of_asset'], 'method' => 'debit', 'amount' => 5000, 'memo' => 'Close gain on sale'],
 
             // Close expense accounts (credit to zero them out, debit-normal)
-            ['account' => $accounts['cogs'], 'method' => 'credit', 'amount' => 3000000, 'memo' => 'Close COGS'],
-            ['account' => $accounts['salaries'], 'method' => 'credit', 'amount' => 1500000, 'memo' => 'Close salaries'],
-            ['account' => $accounts['rent'], 'method' => 'credit', 'amount' => 500000, 'memo' => 'Close rent'],
-            ['account' => $accounts['utilities'], 'method' => 'credit', 'amount' => 200000, 'memo' => 'Close utilities'],
-            ['account' => $accounts['depreciation'], 'method' => 'credit', 'amount' => 100000, 'memo' => 'Close depreciation'],
-            ['account' => $accounts['inventory_shrinkage'], 'method' => 'credit', 'amount' => 100000, 'memo' => 'Close inventory loss'],
+            ['account' => $accounts['cogs'], 'method' => 'credit', 'amount' => 30000, 'memo' => 'Close COGS'],
+            ['account' => $accounts['salaries'], 'method' => 'credit', 'amount' => 15000, 'memo' => 'Close salaries'],
+            ['account' => $accounts['rent'], 'method' => 'credit', 'amount' => 5000, 'memo' => 'Close rent'],
+            ['account' => $accounts['utilities'], 'method' => 'credit', 'amount' => 2000, 'memo' => 'Close utilities'],
+            ['account' => $accounts['depreciation'], 'method' => 'credit', 'amount' => 1000, 'memo' => 'Close depreciation'],
+            ['account' => $accounts['inventory_shrinkage'], 'method' => 'credit', 'amount' => 1000, 'memo' => 'Close inventory loss'],
 
             // Credit retained earnings for net income
-            // (6,000,000 + 2,000,000 + 500,000) - (3,000,000 + 1,500,000 + 500,000 + 200,000 + 100,000 + 100,000) = 3,100,000
-            ['account' => $accounts['retained_earnings'], 'method' => 'credit', 'amount' => $netIncome, 'memo' => 'Net income for period'],
+            // (60,000 + 20,000 + 5,000) - (30,000 + 15,000 + 5,000 + 2,000 + 1,000 + 1,000) = 31,000
+            ['account' => $accounts['retained_earnings'], 'method' => 'credit', 'amount' => $netIncomeInHelperUnits, 'memo' => 'Net income for period'],
         ]);
 
         // After closing entries, retained_earnings (credit-normal) has a balance of $netIncome

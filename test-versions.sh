@@ -67,15 +67,15 @@ print_info() {
 
 backup_composer() {
     print_info "Backing up composer files..."
-    cp composer.json composer.json.backup
-    cp composer.lock composer.lock.backup 2>/dev/null || true
+    cp composer.json "composer.json.backup"
+    cp composer.lock "composer.lock.backup" 2>/dev/null || true
 }
 
 restore_composer() {
     print_info "Restoring original composer files..."
-    cp composer.json.backup composer.json
-    cp composer.lock.backup composer.lock 2>/dev/null || true
-    rm -f composer.json.backup composer.lock.backup
+    cp "composer.json.backup" composer.json
+    cp "composer.lock.backup" composer.lock 2>/dev/null || true
+    rm -f "composer.json.backup" "composer.lock.backup"
     composer install --no-interaction --quiet
 }
 
