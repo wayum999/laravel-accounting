@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Williamlettieri\Accounting\Enums;
+namespace App\Accounting\Enums;
 
 /**
  * Represents different types of ledger accounts in the accounting system.

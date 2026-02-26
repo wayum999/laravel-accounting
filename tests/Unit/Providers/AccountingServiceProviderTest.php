@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Providers;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Providers\AccountingServiceProvider;
+use App\Accounting\Providers\AccountingServiceProvider;
 use Illuminate\Foundation\Application;
 
 class AccountingServiceProviderTest extends TestCase

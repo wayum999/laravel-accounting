@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\ComplexUseCases;
 
 use Carbon\Carbon;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Transaction;
 use Tests\TestCase;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;

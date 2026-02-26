@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Models;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Enums\LedgerType;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Enums\LedgerType;
 use Carbon\Carbon;
 use Money\Money;
 use Money\Currency;
@@ -25,7 +25,7 @@ class JournalAdditionalTest extends TestCase
         // Test credit with integer amount
         $transaction = $journal->credit(1500, 'Raw amount credit');
         
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Models\JournalTransaction::class, $transaction);
+        $this->assertInstanceOf(\App\Accounting\Models\JournalTransaction::class, $transaction);
         $this->assertEquals(1500, $transaction->credit);
     }
 
@@ -40,7 +40,7 @@ class JournalAdditionalTest extends TestCase
         // Test debit with integer amount
         $transaction = $journal->debit(2000, 'Raw amount debit');
         
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Models\JournalTransaction::class, $transaction);
+        $this->assertInstanceOf(\App\Accounting\Models\JournalTransaction::class, $transaction);
         $this->assertEquals(2000, $transaction->debit);
     }
 

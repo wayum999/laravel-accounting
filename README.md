@@ -66,7 +66,7 @@ The service provider will be **automatically discovered** by Laravel (5.5+). No 
 ### 2. Publish Migrations
 
 ```bash
-php artisan vendor:publish --provider="Williamlettieri\Accounting\Providers\AccountingServiceProvider"
+php artisan vendor:publish --provider="App\Accounting\Providers\AccountingServiceProvider"
 ```
 
 This will install 3 new tables in your database:
@@ -85,7 +85,7 @@ php artisan migrate
 Add the `AccountingJournal` trait to any model you want to track balances for:
 
 ```php
-use Williamlettieri\Accounting\ModelTraits\AccountingJournal;
+use App\Accounting\ModelTraits\AccountingJournal;
 
 class User extends Model
 {
@@ -184,7 +184,7 @@ $productCopy = $transactionOne->getReferencedObject();
     The `Transaction` class provides a fluent interface for creating double-entry transactions:
     
     ```php
-    use Williamlettieri\Accounting\Transaction;
+    use App\Accounting\Transaction;
     
     // Create a new transaction group
     $transaction = Transaction::newDoubleEntryTransactionGroup();
@@ -307,7 +307,7 @@ $creditedToday = $journal->getDollarsCreditedToday();   // Float
 ### Transaction Operations
 
 ```php
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Transaction;
 
 // Create transaction group
 $transaction = Transaction::newDoubleEntryTransactionGroup();
@@ -329,8 +329,8 @@ $transactionGroupId = $transaction->commit();
 ### Ledger Management
 
 ```php
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Enums\LedgerType;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Enums\LedgerType;
 
 // Create ledgers
 $assetLedger = Ledger::create([

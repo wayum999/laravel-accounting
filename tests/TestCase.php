@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Orchestra\Testbench\TestCase as BaseTestCase;
-use Williamlettieri\Accounting\Providers\AccountingServiceProvider;
+use App\Accounting\Providers\AccountingServiceProvider;
 
 abstract class TestCase extends BaseTestCase
 {

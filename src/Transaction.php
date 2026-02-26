@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Williamlettieri\Accounting;
+namespace App\Accounting;
 
 use Carbon\Carbon;
-use Williamlettieri\Accounting\Models\Journal;
+use App\Accounting\Models\Journal;
 use Money\Money;
 use Money\Currency;
-use Williamlettieri\Accounting\Exceptions\{
+use App\Accounting\Exceptions\{
     InvalidJournalEntryValue,
     InvalidJournalMethod,
     DebitsAndCreditsDoNotEqual,

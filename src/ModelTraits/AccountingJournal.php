@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Williamlettieri\Accounting\ModelTraits;
+namespace App\Accounting\ModelTraits;
 
 use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Williamlettieri\Accounting\Exceptions\JournalAlreadyExists;
-use Williamlettieri\Accounting\Models\Journal;
+use App\Accounting\Exceptions\JournalAlreadyExists;
+use App\Accounting\Models\Journal;
 
 trait AccountingJournal
 {

@@ -6,8 +6,8 @@ namespace Tests\Unit\Exceptions;
 
 use Money\Currency;
 use Money\Money;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Models\Journal;
+use App\Accounting\Transaction;
 use Tests\Unit\TestCase;
 
 class TransactionExceptionTest extends TestCase
@@ -69,7 +69,7 @@ class TransactionExceptionTest extends TestCase
         $this->assertIsString($result);
 
         // Verify the referenced objects were set
-        $transactions = \Williamlettieri\Accounting\Models\JournalTransaction::where('transaction_group', $result)->get();
+        $transactions = \App\Accounting\Models\JournalTransaction::where('transaction_group', $result)->get();
         $this->assertCount(2, $transactions);
 
         foreach ($transactions as $tx) {

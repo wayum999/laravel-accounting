@@ -34,13 +34,13 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Williamlettieri\\Accounting\\Providers\\AccountingServiceProvider"
+                "App\\Accounting\\Providers\\AccountingServiceProvider"
             ]
         }
     },
     "autoload": {
         "psr-4": {
-            "Williamlettieri\\Accounting\\": "src/",
+            "App\\Accounting\\": "src/",
             "Tests\\": "tests/"
         }
     },

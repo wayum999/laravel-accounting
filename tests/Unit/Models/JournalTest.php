@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Models;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Enums\LedgerType;
-use Williamlettieri\Accounting\Models\JournalTransaction;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Enums\LedgerType;
+use App\Accounting\Models\JournalTransaction;
 use Carbon\Carbon;
 use Money\Money;
 use Money\Currency;
@@ -137,13 +137,13 @@ class JournalTest extends TestCase
         // Create a journal for testing
         $journal = Journal::create([
             'currency' => 'USD',
-            'morphed_type' => 'Williamlettieri\\Accounting\\Models\\Ledger',
+            'morphed_type' => 'App\\Accounting\\Models\\Ledger',
             'morphed_id' => 123,
         ]);
 
         // The morphed relationship should return a MorphTo instance
         $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\MorphTo::class, $journal->morphed());
-        $this->assertEquals('Williamlettieri\\Accounting\\Models\\Ledger', $journal->morphed_type);
+        $this->assertEquals('App\\Accounting\\Models\\Ledger', $journal->morphed_type);
         $this->assertEquals(123, $journal->morphed_id);
     }
 
@@ -704,7 +704,7 @@ class JournalTest extends TestCase
         // Test the morphed() relationship method
         $journal = Journal::create([
             'currency' => 'USD',
-            'morphed_type' => 'Williamlettieri\Accounting\Models\Ledger',
+            'morphed_type' => 'App\Accounting\Models\Ledger',
             'morphed_id' => 123,
         ]);
 

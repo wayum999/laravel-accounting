@@ -7,9 +7,9 @@ namespace Tests\Unit\Exceptions;
 use Illuminate\Support\Facades\DB;
 use Money\Currency;
 use Money\Money;
-use Williamlettieri\Accounting\Exceptions\TransactionCouldNotBeProcessed;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Exceptions\TransactionCouldNotBeProcessed;
+use App\Accounting\Models\Journal;
+use App\Accounting\Transaction;
 use Tests\Unit\TestCase;
 
 class TransactionExceptionHandlingTest extends TestCase
@@ -74,7 +74,7 @@ class TransactionExceptionHandlingTest extends TestCase
         $transaction->addTransaction($journal1, 'debit', $money1, 'Test debit');
         $transaction->addTransaction($journal2, 'credit', $money2, 'Test credit');
         
-        $this->expectException(\Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
+        $this->expectException(\App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
         $this->expectExceptionMessage('In this transaction, credits == 1500 and debits == 1000');
         
         $transaction->commit();

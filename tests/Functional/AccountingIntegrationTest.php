@@ -7,10 +7,10 @@ namespace Tests\Functional;
 use Carbon\Carbon;
 use Money\Currency;
 use Money\Money;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\JournalTransaction;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\JournalTransaction;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Transaction;
 use Tests\TestCase;
 
 class AccountingIntegrationTest extends TestCase

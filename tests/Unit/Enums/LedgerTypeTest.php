@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Enums;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Enums\LedgerType;
+use App\Accounting\Enums\LedgerType;
 
 class LedgerTypeTest extends TestCase
 {

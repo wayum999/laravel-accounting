@@ -8,12 +8,12 @@ use Carbon\Carbon;
 use Money\Money;
 use Money\Currency;
 use Illuminate\Support\Str;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\JournalTransaction;
-use Williamlettieri\Accounting\Transaction;
-use Williamlettieri\Accounting\Exceptions\InvalidJournalEntryValue;
-use Williamlettieri\Accounting\Exceptions\InvalidJournalMethod;
-use Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\JournalTransaction;
+use App\Accounting\Transaction;
+use App\Accounting\Exceptions\InvalidJournalEntryValue;
+use App\Accounting\Exceptions\InvalidJournalMethod;
+use App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
 use Tests\TestCase;
 use Illuminate\Support\Facades\DB;
 
@@ -245,7 +245,7 @@ class TransactionTest extends TestCase
         $transactionGroupId = $transaction->commit();
         
         // Verify transaction was created with reference
-        $createdTransaction = \Williamlettieri\Accounting\Models\JournalTransaction::where('transaction_group', $transactionGroupId)
+        $createdTransaction = \App\Accounting\Models\JournalTransaction::where('transaction_group', $transactionGroupId)
             ->where('journal_id', $journal1->id)
             ->first();
             

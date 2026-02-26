@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Transaction;
-use Williamlettieri\Accounting\Exceptions\TransactionCouldNotBeProcessed;
+use App\Accounting\Models\Journal;
+use App\Accounting\Transaction;
+use App\Accounting\Exceptions\TransactionCouldNotBeProcessed;
 use Money\Money;
 use Money\Currency;
 use Carbon\Carbon;
@@ -19,7 +19,7 @@ class TransactionAdditionalTest extends TestCase
     {
         // This tests the private verifyTransactionCreditsEqualDebits method indirectly
         // by creating a transaction where credits != debits
-        $this->expectException(\Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
+        $this->expectException(\App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
         
         $transaction = Transaction::newDoubleEntryTransactionGroup();
         
@@ -48,7 +48,7 @@ class TransactionAdditionalTest extends TestCase
 
     public function test_commit_empty_transactions(): void
     {
-        $this->expectException(\Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
+        $this->expectException(\App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual::class);
         
         $transaction = Transaction::newDoubleEntryTransactionGroup();
         

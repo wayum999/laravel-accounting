@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Tests\Unit\Exceptions;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Exceptions\BaseException;
-use Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
-use Williamlettieri\Accounting\Exceptions\InvalidJournalEntryValue;
-use Williamlettieri\Accounting\Exceptions\InvalidJournalMethod;
-use Williamlettieri\Accounting\Exceptions\JournalAlreadyExists;
-use Williamlettieri\Accounting\Exceptions\TransactionCouldNotBeProcessed;
+use App\Accounting\Exceptions\BaseException;
+use App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
+use App\Accounting\Exceptions\InvalidJournalEntryValue;
+use App\Accounting\Exceptions\InvalidJournalMethod;
+use App\Accounting\Exceptions\JournalAlreadyExists;
+use App\Accounting\Exceptions\TransactionCouldNotBeProcessed;
 
 class ExceptionsTest extends TestCase
 {
@@ -118,7 +118,7 @@ class ExceptionsTest extends TestCase
         $exception = new InvalidJournalEntryValue();
 
         $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
     public function test_invalid_journal_method_exception_coverage(): void
@@ -127,7 +127,7 @@ class ExceptionsTest extends TestCase
         $exception = new InvalidJournalMethod();
 
         $this->assertEquals('Journal methods must be credit or debit', $exception->getMessage());
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
     public function test_journal_already_exists_exception_coverage(): void
@@ -136,7 +136,7 @@ class ExceptionsTest extends TestCase
         $exception = new JournalAlreadyExists();
 
         $this->assertEquals('Journal already exists.', $exception->getMessage());
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
     }
 
     public function test_missing_exception_classes_direct_instantiation(): void

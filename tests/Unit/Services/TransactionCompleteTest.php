@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Transaction;
-use Williamlettieri\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
+use App\Accounting\Models\Journal;
+use App\Accounting\Transaction;
+use App\Accounting\Exceptions\DebitsAndCreditsDoNotEqual;
 use Money\Money;
 use Money\Currency;
 

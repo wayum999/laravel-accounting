@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Tests\Unit\Traits;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\ModelTraits\AccountingJournal;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Enums\LedgerType;
-use Williamlettieri\Accounting\Exceptions\JournalAlreadyExists;
+use App\Accounting\ModelTraits\AccountingJournal;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Enums\LedgerType;
+use App\Accounting\Exceptions\JournalAlreadyExists;
 use Illuminate\Database\Eloquent\Model;
 
 class AccountingJournalTest extends TestCase

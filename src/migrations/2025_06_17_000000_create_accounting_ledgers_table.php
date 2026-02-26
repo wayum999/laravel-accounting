@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
-use Williamlettieri\Accounting\Enums\LedgerType;
+use App\Accounting\Enums\LedgerType;
 
 return new class extends Migration
 {

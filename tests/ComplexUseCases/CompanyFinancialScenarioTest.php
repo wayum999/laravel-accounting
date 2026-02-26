@@ -6,10 +6,10 @@ namespace Tests\ComplexUseCases;
 
 use Carbon\Carbon;
 use Tests\TestCase;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Enums\LedgerType;
-use Williamlettieri\Accounting\Transaction;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Models\Journal;
+use App\Accounting\Enums\LedgerType;
+use App\Accounting\Transaction;
 use Money\Money;
 use Money\Currency;
 

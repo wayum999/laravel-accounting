@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Models;
 
 use Tests\Unit\TestCase;
-use Williamlettieri\Accounting\Models\Journal;
-use Williamlettieri\Accounting\Models\Ledger;
-use Williamlettieri\Accounting\Enums\LedgerType;
-use Williamlettieri\Accounting\Models\JournalTransaction;
+use App\Accounting\Models\Journal;
+use App\Accounting\Models\Ledger;
+use App\Accounting\Enums\LedgerType;
+use App\Accounting\Models\JournalTransaction;
 use Illuminate\Support\Str;
 
 class JournalTransactionTest extends TestCase

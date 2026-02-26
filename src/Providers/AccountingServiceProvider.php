@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Williamlettieri\Accounting\Providers;
+namespace App\Accounting\Providers;
 
 use Illuminate\Support\ServiceProvider;
 

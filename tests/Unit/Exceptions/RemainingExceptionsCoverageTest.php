@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Exceptions;
 
-use Williamlettieri\Accounting\Exceptions\InvalidJournalEntryValue;
-use Williamlettieri\Accounting\Exceptions\InvalidJournalMethod;
-use Williamlettieri\Accounting\Exceptions\JournalAlreadyExists;
+use App\Accounting\Exceptions\InvalidJournalEntryValue;
+use App\Accounting\Exceptions\InvalidJournalMethod;
+use App\Accounting\Exceptions\JournalAlreadyExists;
 use Tests\Unit\TestCase;
 
 class RemainingExceptionsCoverageTest extends TestCase
@@ -16,7 +16,7 @@ class RemainingExceptionsCoverageTest extends TestCase
         // Test direct instantiation of InvalidJournalEntryValue
         $exception = new InvalidJournalEntryValue();
         
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
         $this->assertEquals('Journal transaction entries must be a positive value', $exception->getMessage());
     }
     
@@ -25,7 +25,7 @@ class RemainingExceptionsCoverageTest extends TestCase
         // Test direct instantiation of InvalidJournalMethod
         $exception = new InvalidJournalMethod();
         
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
         $this->assertEquals('Journal methods must be credit or debit', $exception->getMessage());
     }
     
@@ -34,7 +34,7 @@ class RemainingExceptionsCoverageTest extends TestCase
         // Test direct instantiation of JournalAlreadyExists
         $exception = new JournalAlreadyExists();
         
-        $this->assertInstanceOf(\Williamlettieri\Accounting\Exceptions\BaseException::class, $exception);
+        $this->assertInstanceOf(\App\Accounting\Exceptions\BaseException::class, $exception);
         $this->assertEquals('Journal already exists.', $exception->getMessage());
     }
     
