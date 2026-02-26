@@ -185,17 +185,8 @@ class AccountTest extends TestCase
         $this->assertEquals(123, $account->morphed_id);
     }
 
-    public function test_set_currency_method(): void
-    {
-        $account = Account::create([
-            'currency' => 'USD',
-            'morphed_type' => 'test',
-            'morphed_id' => 1,
-        ]);
 
-        $account->setCurrency('EUR');
-        $this->assertEquals('EUR', $account->currency);
-    }
+
 
     public function test_assign_to_account_type_method(): void
     {

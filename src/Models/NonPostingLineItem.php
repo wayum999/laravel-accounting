@@ -7,24 +7,18 @@ namespace App\Accounting\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use App\Accounting\ModelTraits\HasReferencedObject;
 
 class NonPostingLineItem extends Model
 {
+    use HasReferencedObject;
     protected $table = 'accounting_non_posting_line_items';
 
     public $incrementing = false;
 
-    protected $fillable = [
-        'non_posting_transaction_id',
-        'account_id',
-        'description',
-        'quantity',
-        'unit_price',
-        'amount',
-        'ref_class',
-        'ref_class_id',
-        'sort_order',
-    ];
+    protected $keyType = 'string';
+
+    protected $guarded = [];
 
     protected $casts = [
         'quantity' => 'decimal:4',
@@ -67,29 +61,4 @@ class NonPostingLineItem extends Model
         return $this->belongsTo(Account::class);
     }
 
-    /**
-     * Retrieve the referenced object.
-     */
-    public function getReferencedObject(): ?Model
-    {
-        if (! $this->ref_class) {
-            return null;
-        }
-
-        $class = new $this->ref_class;
-        return $class->find($this->ref_class_id);
-    }
-
-    /**
-     * Set the referenced object.
-     */
-    public function referencesObject(Model $object): self
-    {
-        $this->update([
-            'ref_class' => $object::class,
-            'ref_class_id' => $object->id,
-        ]);
-
-        return $this;
-    }
 }

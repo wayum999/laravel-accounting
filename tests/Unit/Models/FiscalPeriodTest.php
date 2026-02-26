@@ -10,6 +10,7 @@ use App\Accounting\Models\AccountType;
 use App\Accounting\Models\FiscalPeriod;
 use App\Accounting\Models\JournalEntry;
 use App\Accounting\Enums\AccountCategory;
+use App\Accounting\Enums\FiscalPeriodStatus;
 use App\Accounting\Exceptions\FiscalPeriodOverlapException;
 use App\Accounting\Exceptions\PeriodClosedException;
 use Carbon\Carbon;
@@ -161,7 +162,7 @@ class FiscalPeriodTest extends TestCase
         $period->close($this->retainedEarningsAccount, 'admin');
 
         $period->refresh();
-        $this->assertEquals('closed', $period->status);
+        $this->assertEquals(FiscalPeriodStatus::CLOSED, $period->status);
         $this->assertNotNull($period->closed_at);
         $this->assertEquals('admin', $period->closed_by);
         $this->assertNotNull($period->closing_transaction_group);
@@ -222,7 +223,7 @@ class FiscalPeriodTest extends TestCase
         $period->reopen();
 
         $period->refresh();
-        $this->assertEquals('open', $period->status);
+        $this->assertEquals(FiscalPeriodStatus::OPEN, $period->status);
         $this->assertNull($period->closed_at);
         // Revenue balance should be restored
         $this->assertEquals(30000, (int) $this->revenueAccount->getBalance()->getAmount());
@@ -273,7 +274,7 @@ class FiscalPeriodTest extends TestCase
         $period->close($this->retainedEarningsAccount);
 
         $period->refresh();
-        $this->assertEquals('closed', $period->status);
+        $this->assertEquals(FiscalPeriodStatus::CLOSED, $period->status);
         $this->assertNull($period->closing_transaction_group);
     }
 }

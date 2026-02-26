@@ -16,21 +16,7 @@ class Account extends Model
 {
     protected $table = 'accounting_accounts';
 
-    protected $dates = [
-        'deleted_at',
-        'updated_at'
-    ];
-
-    protected $fillable = [
-        'account_type_id',
-        'number',
-        'name',
-        'balance',
-        'currency',
-        'morphed_type',
-        'morphed_id',
-        'is_active',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'balance' => 'int',
@@ -45,10 +31,6 @@ class Account extends Model
         static::creating(function (self $account): void {
             $account->balance = 0;
         });
-
-        static::created(function (self $account): void {
-            $account->resetCurrentBalances();
-        });
     }
 
     public function morphed(): MorphTo
@@ -61,10 +43,7 @@ class Account extends Model
         return $this->belongsTo(AccountType::class);
     }
 
-    public function setCurrency(string $currency): void
-    {
-        $this->currency = $currency;
-    }
+
 
     public function assignToAccountType(AccountType $accountType): void
     {
@@ -390,8 +369,7 @@ class Account extends Model
             'is_posted' => true,
         ]);
 
-        $this->refresh();
-        $this->balance = $this->getCurrentBalance();
+        $this->balance = $this->getBalance();
         $this->save();
 
         return $entry;

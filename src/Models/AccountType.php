@@ -16,14 +16,7 @@ class AccountType extends Model
 {
     protected $table = 'accounting_account_types';
 
-    protected $fillable = [
-        'name',
-        'type',
-        'code',
-        'parent_id',
-        'description',
-        'is_active',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'created_at' => 'datetime',

@@ -141,7 +141,7 @@ class Transaction
             );
         }
 
-        if ($entries->first()->is_reversed) {
+        if ($entries->every(fn($e) => $e->is_reversed)) {
             throw TransactionAlreadyReversedException::forTransactionGroup($transactionGroupUuid);
         }
 

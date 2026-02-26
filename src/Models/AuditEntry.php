@@ -27,7 +27,7 @@ class AuditEntry extends Model
     /**
      * Audit entries are immutable - prevent updates and deletes.
      */
-    public static function boot(): void
+    protected static function boot(): void
     {
         parent::boot();
 

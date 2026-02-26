@@ -172,25 +172,8 @@ class JournalEntryTest extends TestCase
         $this->assertTrue(Str::isUuid($entry->id));
     }
 
-    public function test_set_currency_method(): void
-    {
-        $account = Account::create([
-            'currency' => 'USD',
-            'morphed_type' => 'test',
-            'morphed_id' => 1,
-        ]);
 
-        $entry = $account->journalEntries()->create([
-            'debit' => 1000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'memo' => 'Test entry',
-            'post_date' => now(),
-        ]);
 
-        $entry->setCurrency('EUR');
-        $this->assertEquals('EUR', $entry->currency);
-    }
 
     public function test_get_referenced_object_with_nonexistent_class(): void
     {

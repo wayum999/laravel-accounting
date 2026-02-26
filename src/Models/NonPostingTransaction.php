@@ -11,31 +11,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use App\Accounting\Enums\NonPostingStatus;
 use App\Accounting\Exceptions\NonPostingAlreadyConverted;
+use App\Accounting\ModelTraits\HasReferencedObject;
 use App\Accounting\Transaction;
 
 class NonPostingTransaction extends Model
 {
     use SoftDeletes;
+    use HasReferencedObject;
 
     protected $table = 'accounting_non_posting_transactions';
 
     public $incrementing = false;
 
-    protected $fillable = [
-        'type',
-        'status',
-        'number',
-        'description',
-        'currency',
-        'total_amount',
-        'ref_class',
-        'ref_class_id',
-        'morphed_type',
-        'morphed_id',
-        'metadata',
-        'due_date',
-        'converted_to_group',
-    ];
+    protected $keyType = 'string';
+
+    protected $guarded = [];
 
     protected $casts = [
         'total_amount' => 'int',
@@ -66,31 +56,7 @@ class NonPostingTransaction extends Model
         return $this->morphTo();
     }
 
-    /**
-     * Retrieve the referenced object (vendor, customer, etc.).
-     */
-    public function getReferencedObject(): ?Model
-    {
-        if (! $this->ref_class) {
-            return null;
-        }
 
-        $class = new $this->ref_class;
-        return $class->find($this->ref_class_id);
-    }
-
-    /**
-     * Set the referenced object.
-     */
-    public function referencesObject(Model $object): self
-    {
-        $this->update([
-            'ref_class' => $object::class,
-            'ref_class_id' => $object->id,
-        ]);
-
-        return $this;
-    }
 
     /**
      * Recalculate total_amount from line items.
@@ -122,6 +88,12 @@ class NonPostingTransaction extends Model
     {
         if ($this->isConverted()) {
             throw new NonPostingAlreadyConverted();
+        }
+
+        if (! $this->status->canConvert()) {
+            throw new NonPostingAlreadyConverted(
+                "Cannot convert a transaction with status '{$this->status->value}'."
+            );
         }
 
         $transaction = Transaction::newDoubleEntryTransactionGroup();

@@ -30,7 +30,9 @@ trait HasAccount
             $account->account_type_id = $accountTypeId;
             $account->currency = $currencyCode;
             $account->balance = 0;
-            return $this->account()->save($account);
+            $this->account()->save($account);
+
+            return $account;
         }
         throw new AccountAlreadyExists;
     }

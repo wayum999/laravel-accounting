@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Accounting\Models;
 
 use App\Accounting\Enums\AccountCategory;
+use App\Accounting\Enums\FiscalPeriodStatus;
 use App\Accounting\Exceptions\FiscalPeriodOverlapException;
 use App\Accounting\Exceptions\PeriodClosedException;
 use App\Accounting\Transaction;
@@ -19,20 +20,13 @@ class FiscalPeriod extends Model
 {
     protected $table = 'accounting_fiscal_periods';
 
-    protected $fillable = [
-        'name',
-        'start_date',
-        'end_date',
-        'status',
-        'closed_at',
-        'closed_by',
-        'closing_transaction_group',
-    ];
+    protected $guarded = [];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'closed_at' => 'datetime',
+        'status' => FiscalPeriodStatus::class,
     ];
 
     /**
@@ -41,7 +35,7 @@ class FiscalPeriod extends Model
      */
     public static function getClosedPeriodForDate(Carbon $date): ?self
     {
-        return static::where('status', 'closed')
+        return static::where('status', FiscalPeriodStatus::CLOSED)
             ->where('start_date', '<=', $date)
             ->where('end_date', '>=', $date)
             ->first();
@@ -93,7 +87,7 @@ class FiscalPeriod extends Model
      */
     public function close(Account $retainedEarningsAccount, ?string $closedBy = null): void
     {
-        if ($this->status === 'closed') {
+        if ($this->status === FiscalPeriodStatus::CLOSED) {
             return;
         }
 
@@ -101,7 +95,7 @@ class FiscalPeriod extends Model
             $closingGroupUuid = $this->generateClosingEntries($retainedEarningsAccount);
 
             $this->update([
-                'status' => 'closed',
+                'status' => FiscalPeriodStatus::CLOSED,
                 'closed_at' => Carbon::now(),
                 'closed_by' => $closedBy,
                 'closing_transaction_group' => $closingGroupUuid,
@@ -115,7 +109,7 @@ class FiscalPeriod extends Model
      */
     public function reopen(): void
     {
-        if ($this->status === 'open') {
+        if ($this->status === FiscalPeriodStatus::OPEN) {
             return;
         }
 
@@ -131,7 +125,7 @@ class FiscalPeriod extends Model
             }
 
             $this->update([
-                'status' => 'open',
+                'status' => FiscalPeriodStatus::OPEN,
                 'closed_at' => null,
                 'closed_by' => null,
                 'closing_transaction_group' => null,
@@ -141,12 +135,12 @@ class FiscalPeriod extends Model
 
     public function isOpen(): bool
     {
-        return $this->status === 'open';
+        return $this->status === FiscalPeriodStatus::OPEN;
     }
 
     public function isClosed(): bool
     {
-        return $this->status === 'closed';
+        return $this->status === FiscalPeriodStatus::CLOSED;
     }
 
     /**
@@ -154,7 +148,7 @@ class FiscalPeriod extends Model
      */
     public function scopeOpen(Builder $query): Builder
     {
-        return $query->where('status', 'open');
+        return $query->where('status', FiscalPeriodStatus::OPEN);
     }
 
     /**
@@ -162,7 +156,7 @@ class FiscalPeriod extends Model
      */
     public function scopeClosed(Builder $query): Builder
     {
-        return $query->where('status', 'closed');
+        return $query->where('status', FiscalPeriodStatus::CLOSED);
     }
 
     /**
@@ -185,7 +179,7 @@ class FiscalPeriod extends Model
                 'name' => $start->format('F Y'),
                 'start_date' => $start,
                 'end_date' => $end,
-                'status' => 'open',
+                'status' => FiscalPeriodStatus::OPEN,
             ]);
 
             if (!$period->hasOverlap()) {

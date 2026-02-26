@@ -9,16 +9,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use App\Accounting\ModelTraits\HasReferencedObject;
 
 class JournalEntry extends Model
 {
     use SoftDeletes;
+    use HasReferencedObject;
 
     protected $table = 'accounting_journal_entries';
 
     public $incrementing = false;
 
-    protected $guarded = ['id'];
+    protected $keyType = 'string';
+
+    protected $guarded = [];
 
     protected $casts = [
         'post_date' => 'datetime',
@@ -28,23 +32,6 @@ class JournalEntry extends Model
         'ref_class_id' => 'int',
         'is_posted' => 'boolean',
         'is_reversed' => 'boolean',
-    ];
-
-    protected $fillable = [
-        'account_id',
-        'debit',
-        'credit',
-        'currency',
-        'memo',
-        'post_date',
-        'tags',
-        'ref_class',
-        'ref_class_id',
-        'transaction_group',
-        'is_posted',
-        'reversed_by',
-        'reversal_of',
-        'is_reversed',
     ];
 
     protected static function boot(): void
@@ -65,36 +52,7 @@ class JournalEntry extends Model
         return $this->belongsTo(Account::class);
     }
 
-    /**
-     * Associate this entry with a referenced Eloquent model.
-     */
-    public function referencesObject(Model $object): self
-    {
-        $this->update([
-            'ref_class' => $object::class,
-            'ref_class_id' => $object->id,
-        ]);
 
-        return $this;
-    }
-
-    /**
-     * Retrieve the referenced Eloquent model.
-     */
-    public function getReferencedObject(): ?Model
-    {
-        if (! $this->ref_class) {
-            return null;
-        }
-
-        $class = new $this->ref_class;
-        return $class->find($this->ref_class_id);
-    }
-
-    public function setCurrency(string $currency): void
-    {
-        $this->currency = $currency;
-    }
 
     /**
      * Reverse this journal entry by creating an equal-and-opposite entry.
