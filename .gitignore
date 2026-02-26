@@ -1,0 +1,51 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Testing
+/coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Database files (for testing)
+database/database.sqlite
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+/build/
+/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Cache files
+.php_cs.cache
+.php_cs.cache.*
+.php-cs-fixer.cache
+.orchestrator
+.claude

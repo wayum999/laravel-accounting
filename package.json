@@ -1,0 +1,8 @@
+{
+  "name": "williamlettieri/accounting",
+  "author": "William Lettieri",
+  "license": "MIT",
+  "dependencies": {
+    "@willbots/orchestrator": "^16.3.0"
+  }
+}

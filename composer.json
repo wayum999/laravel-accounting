@@ -1,0 +1,62 @@
+{
+    "name": "williamlettieri/accounting",
+    "description": "Laravel Accounting Journals for Eloquent Models",
+    "license": "MIT",
+    "keywords": ["laravel", "accounting"],
+    "authors": [
+        {
+            "name": "William Lettieri",
+            "email": "william@willbots.com"
+        }
+    ],
+    "repositories": [],
+    "require": {
+        "php": "^8.1|^8.2|^8.3",
+        "laravel/framework": "9.*",
+        "moneyphp/money": "^3.3.3",
+        "orchestra/testbench": "^7.0",
+        "phpunit/phpunit": "^9.0"
+    },
+    "require-dev": {
+        "mockery/mockery": "^1.6.0",
+        "fakerphp/faker": "^1.23"
+    },
+    "config": {
+        "allow-plugins": {
+            "phpunit/phpunit": true,
+            "orchestra/testbench": true
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    },
+
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Williamlettieri\\Accounting\\Providers\\AccountingServiceProvider"
+            ]
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Williamlettieri\\Accounting\\": "src/",
+            "Tests\\": "tests/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "XDEBUG_MODE=coverage vendor/bin/phpunit",
+        "test:coverage": "XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html coverage",
+        "post-update-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\""
+        ]
+    }
+}
