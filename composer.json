@@ -1,0 +1,63 @@
+{
+    "name": "wayum999/laravel-accounting",
+    "description": "Laravel Double-Entry Accounting Package with proper debit/credit rules, General Journal, General Ledger, and non-posting transactions",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "accounting"
+    ],
+    "authors": [
+        {
+            "name": "William Lettieri",
+            "email": "william@willbots.com"
+        }
+    ],
+    "repositories": [],
+    "require": {
+        "php": "^8.2|^8.3|^8.4|^8.5",
+        "laravel/framework": "^12.0",
+        "moneyphp/money": "^3.3.3"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.0",
+        "mockery/mockery": "^1.6.0",
+        "fakerphp/faker": "^1.23"
+    },
+    "config": {
+        "allow-plugins": {
+            "phpunit/phpunit": true,
+            "orchestra/testbench": true
+        },
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "App\\Accounting\\Providers\\AccountingServiceProvider"
+            ]
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\Accounting\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "XDEBUG_MODE=coverage vendor/bin/phpunit",
+        "test:coverage": "XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html coverage",
+        "post-update-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\""
+        ]
+    }
+}

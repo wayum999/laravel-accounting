@@ -1,0 +1,29 @@
+# Orchestrator project files (PRDs, epics, ideas)
+.orchestrator/*
+!.orchestrator/.gitkeep
+
+# Orchestrator workspace files
+.claude/context/*
+!.claude/context/.gitkeep
+!.claude/context/README.md
+.claude/state/*
+!.claude/state/.gitkeep
+.claude/logs/*
+!.claude/logs/.gitkeep
+
+# Environment secrets (NEVER commit)
+.claude/.env
+
+# Local config overrides (optional, user-specific)
+.claude/config.local.json
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+accounting-master
+node_modules
+.claude
+.phpunit.result.cache
+vendor
