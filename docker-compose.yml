@@ -1,0 +1,54 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: accounting-app
+    working_dir: /var/www
+    volumes:
+      - ".:/var/www"
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - APP_KEY=
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=accounting
+      - DB_USERNAME=sail
+      - DB_PASSWORD=password
+    ports:
+      - "8000:8000"
+    networks:
+      - accounting-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    tty: true
+
+  # Database for testing and development
+  postgres:
+    image: postgres:18
+    container_name: accounting-postgres
+    environment:
+      POSTGRES_DB: accounting
+      POSTGRES_USER: sail
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - accounting-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sail -d accounting"]
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  accounting-network:
+    driver: bridge
