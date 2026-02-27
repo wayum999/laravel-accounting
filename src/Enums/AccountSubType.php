@@ -1,0 +1,152 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Accounting\Enums;
+
+enum AccountSubType: string
+{
+    // Asset sub-types
+    case BANK = 'bank';
+    case ACCOUNTS_RECEIVABLE = 'accounts_receivable';
+    case OTHER_CURRENT_ASSET = 'other_current_asset';
+    case INVENTORY = 'inventory';
+    case FIXED_ASSET = 'fixed_asset';
+    case OTHER_ASSET = 'other_asset';
+
+    // Liability sub-types
+    case ACCOUNTS_PAYABLE = 'accounts_payable';
+    case CREDIT_CARD = 'credit_card';
+    case OTHER_CURRENT_LIABILITY = 'other_current_liability';
+    case LONG_TERM_LIABILITY = 'long_term_liability';
+
+    // Equity sub-types
+    case OWNERS_EQUITY = 'owners_equity';
+    case RETAINED_EARNINGS = 'retained_earnings';
+
+    // Income sub-types
+    case REVENUE = 'revenue';
+    case OTHER_INCOME = 'other_income';
+
+    // Expense sub-types
+    case COST_OF_GOODS_SOLD = 'cost_of_goods_sold';
+    case OPERATING_EXPENSE = 'operating_expense';
+    case OTHER_EXPENSE = 'other_expense';
+
+    /**
+     * Which parent AccountType this sub-type belongs to.
+     */
+    public function parentType(): AccountType
+    {
+        return match ($this) {
+            self::BANK,
+            self::ACCOUNTS_RECEIVABLE,
+            self::OTHER_CURRENT_ASSET,
+            self::INVENTORY,
+            self::FIXED_ASSET,
+            self::OTHER_ASSET => AccountType::ASSET,
+
+            self::ACCOUNTS_PAYABLE,
+            self::CREDIT_CARD,
+            self::OTHER_CURRENT_LIABILITY,
+            self::LONG_TERM_LIABILITY => AccountType::LIABILITY,
+
+            self::OWNERS_EQUITY,
+            self::RETAINED_EARNINGS => AccountType::EQUITY,
+
+            self::REVENUE,
+            self::OTHER_INCOME => AccountType::INCOME,
+
+            self::COST_OF_GOODS_SOLD,
+            self::OPERATING_EXPENSE,
+            self::OTHER_EXPENSE => AccountType::EXPENSE,
+        };
+    }
+
+    /**
+     * The report section group label for display in financial statements.
+     */
+    public function reportGroup(): string
+    {
+        return match ($this) {
+            self::BANK,
+            self::ACCOUNTS_RECEIVABLE,
+            self::OTHER_CURRENT_ASSET,
+            self::INVENTORY => 'Current Assets',
+
+            self::FIXED_ASSET => 'Fixed Assets',
+            self::OTHER_ASSET => 'Other Assets',
+
+            self::ACCOUNTS_PAYABLE,
+            self::CREDIT_CARD,
+            self::OTHER_CURRENT_LIABILITY => 'Current Liabilities',
+
+            self::LONG_TERM_LIABILITY => 'Long-Term Liabilities',
+
+            self::OWNERS_EQUITY,
+            self::RETAINED_EARNINGS => 'Equity',
+
+            self::REVENUE => 'Revenue',
+            self::OTHER_INCOME => 'Other Income',
+
+            self::COST_OF_GOODS_SOLD => 'Cost of Goods Sold',
+            self::OPERATING_EXPENSE => 'Operating Expenses',
+            self::OTHER_EXPENSE => 'Other Expenses',
+        };
+    }
+
+    /**
+     * Whether this sub-type represents a current (short-term) item.
+     */
+    public function isCurrent(): bool
+    {
+        return match ($this) {
+            self::BANK,
+            self::ACCOUNTS_RECEIVABLE,
+            self::OTHER_CURRENT_ASSET,
+            self::INVENTORY,
+            self::ACCOUNTS_PAYABLE,
+            self::CREDIT_CARD,
+            self::OTHER_CURRENT_LIABILITY => true,
+
+            default => false,
+        };
+    }
+
+    /**
+     * Human-readable label.
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::BANK => 'Bank',
+            self::ACCOUNTS_RECEIVABLE => 'Accounts Receivable',
+            self::OTHER_CURRENT_ASSET => 'Other Current Asset',
+            self::INVENTORY => 'Inventory',
+            self::FIXED_ASSET => 'Fixed Asset',
+            self::OTHER_ASSET => 'Other Asset',
+            self::ACCOUNTS_PAYABLE => 'Accounts Payable',
+            self::CREDIT_CARD => 'Credit Card',
+            self::OTHER_CURRENT_LIABILITY => 'Other Current Liability',
+            self::LONG_TERM_LIABILITY => 'Long-Term Liability',
+            self::OWNERS_EQUITY => "Owner's Equity",
+            self::RETAINED_EARNINGS => 'Retained Earnings',
+            self::REVENUE => 'Revenue',
+            self::OTHER_INCOME => 'Other Income',
+            self::COST_OF_GOODS_SOLD => 'Cost of Goods Sold',
+            self::OPERATING_EXPENSE => 'Operating Expense',
+            self::OTHER_EXPENSE => 'Other Expense',
+        };
+    }
+
+    /**
+     * Get all sub-types for a given parent AccountType.
+     */
+    public static function forType(AccountType $type): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $subType) => $subType->parentType() === $type
+        ));
+    }
+}
