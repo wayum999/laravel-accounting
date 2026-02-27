@@ -790,8 +790,8 @@ The `account_id` foreign key on ledger entries uses `RESTRICT` on delete — an 
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `isDebitNormal()` | `bool` | True for ASSET and EXPENSE |
-| `isCreditNormal()` | `bool` | True for LIABILITY, EQUITY, INCOME |
+| `isDebitNormal()` | `bool` | True for debit balance types (ASSET, EXPENSE) |
+| `isCreditNormal()` | `bool` | True for credit balance types (LIABILITY, EQUITY, INCOME) |
 | `balanceSign()` | `int` | `1` for debit balance, `-1` for credit balance |
 | `label()` | `string` | Human-readable label |
 | `values()` | `array` | All enum string values |
