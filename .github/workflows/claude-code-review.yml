@@ -1,0 +1,84 @@
+name: Claude Code Review
+
+on:
+    pull_request:
+        types: [opened, synchronize]
+        # Optional: Only run on specific file changes
+        # paths:
+        #   - "src/**/*.ts"
+        #   - "src/**/*.tsx"
+        #   - "src/**/*.js"
+        #   - "src/**/*.jsx"
+
+jobs:
+    claude-review:
+        # Concurrency control - only one review per PR at a time
+        concurrency:
+            group: review-pr-${{ github.event.pull_request.number }}
+            cancel-in-progress: true # Cancel old reviews if new commits arrive
+        # Only run for PRs from the same repository (no forks) so secrets are available
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+
+        # Optional: Filter by PR author
+        # if: |
+        #   github.event.pull_request.user.login == 'external-contributor' ||
+        #   github.event.pull_request.user.login == 'new-developer' ||
+        #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: write
+            issues: write
+            id-token: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 1
+
+            - name: Run Claude Code Review
+              id: claude-review
+              uses: anthropics/claude-code-action@v1
+              with:
+                  claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+                  prompt: |
+                      REPO: ${{ github.repository }}
+                      PR NUMBER: ${{ github.event.pull_request.number }}
+
+                      Review this PR and categorize findings into THREE severity levels:
+
+                      ## 🔴 BLOCKING ISSUES
+                      Issues that MUST be fixed before merge:
+                      - Bugs that will cause runtime errors or break functionality
+                      - Security vulnerabilities (exposed secrets, injection risks, auth bypasses)
+                      - Breaking changes to public APIs without version bumps
+                      - Missing critical error handling that could crash the app
+                      - Test failures or missing tests for new critical functionality
+
+                      ## 🟡 RECOMMENDATIONS (Human Decision)
+                      Issues that SHOULD be addressed but require judgment:
+                      - Performance optimizations (unless causing actual problems)
+                      - Code style/readability improvements
+                      - Refactoring suggestions
+                      - Test coverage improvements for edge cases
+                      - Documentation additions
+
+                      ## 🟢 SUGGESTIONS (Optional)
+                      Nice-to-have improvements:
+                      - Minor style preferences
+                      - Alternative approaches
+                      - Future enhancements
+
+                      ## Review Process:
+                      1. Check CLAUDE.md for project-specific standards
+                      2. DO NOT run `npm test` or any test commands - the husky pre-push hook already ensures all tests pass before code can be pushed to remote. Test verification is redundant here.
+                      3. Post a comprehensive review comment with all findings
+                      4. If blocking issues exist, list them clearly in the 🔴 section with specific fix instructions
+                      5. If no blocking issues, comment "✅ No blocking issues found" + list recommendations
+
+                  # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+                  # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+                  # Note: npm/npx removed - tests are verified by husky pre-push hook, not in code review
+                  claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr edit:*),Bash(shellcheck:*),Bash(grep:*),Bash(cat:*),Bash(find:*)"'
