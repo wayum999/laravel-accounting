@@ -6,38 +6,57 @@ namespace App\Accounting\Services\Reports;
 
 use App\Accounting\Models\Account;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TrialBalance
 {
     /**
      * Generate a trial balance report.
      *
+     * Uses a single GROUP BY query to fetch all debit/credit sums in one round-trip,
+     * eliminating the N+1 pattern of two queries per account.
+     *
      * @return array{accounts: array, total_debits: int, total_credits: int, is_balanced: bool, as_of: string, currency: string}
      */
     public static function generate(?Carbon $asOf = null, string $currency = 'USD', bool $includeZero = false): array
     {
         $asOf = $asOf ?? Carbon::now();
+        $endOfDay = $asOf->copy()->endOfDay();
 
-        $query = Account::where('currency', $currency)
+        $accounts = Account::where('currency', $currency)
             ->where('is_active', true)
-            ->orderBy('code');
+            ->orderBy('code')
+            ->get();
 
-        $accounts = $query->get();
+        if ($accounts->isEmpty()) {
+            return [
+                'accounts' => [],
+                'total_debits' => 0,
+                'total_credits' => 0,
+                'is_balanced' => true,
+                'as_of' => $asOf->toDateString(),
+                'currency' => $currency,
+            ];
+        }
+
+        // Single aggregate query for all active accounts
+        $balanceMap = DB::table('accounting_ledger_entries')
+            ->whereIn('account_id', $accounts->pluck('id')->all())
+            ->where('is_posted', true)
+            ->where('post_date', '<=', $endOfDay)
+            ->groupBy('account_id')
+            ->selectRaw('account_id, SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->get()
+            ->keyBy('account_id');
 
         $rows = [];
         $totalDebits = 0;
         $totalCredits = 0;
 
         foreach ($accounts as $account) {
-            $debits = (int) $account->ledgerEntries()
-                ->where('is_posted', true)
-                ->where('post_date', '<=', $asOf->copy()->endOfDay())
-                ->sum('debit');
-
-            $credits = (int) $account->ledgerEntries()
-                ->where('is_posted', true)
-                ->where('post_date', '<=', $asOf->copy()->endOfDay())
-                ->sum('credit');
+            $row = $balanceMap->get($account->id);
+            $debits = $row ? (int) $row->total_debit : 0;
+            $credits = $row ? (int) $row->total_credit : 0;
 
             // For the trial balance, we show each account's balance
             // in the appropriate debit or credit column based on its net position

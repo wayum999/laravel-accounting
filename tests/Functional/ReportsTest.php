@@ -27,6 +27,14 @@ class ReportsTest extends TestCase
     private Account $revenue;
     private Account $expense;
 
+    protected function tearDown(): void
+    {
+        // Reset any frozen time so Carbon mock leaks don't affect subsequent tests
+        // when an assertion fails before the inline Carbon::setTestNow() cleanup call.
+        Carbon::setTestNow(null);
+        parent::tearDown();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -322,5 +330,55 @@ class ReportsTest extends TestCase
         $this->assertCount(3, $report['summary']);
 
         Carbon::setTestNow();
+    }
+
+    #[Test]
+    public function aging_report_excludes_future_dated_entries(): void
+    {
+        // $asOf is yesterday; entries posted today are future-dated relative to it
+        $asOf = Carbon::parse('2025-02-28');
+        $futureDate = Carbon::parse('2025-03-05');
+
+        $this->ar->debit(100000, 'Past invoice', Carbon::parse('2025-02-01'));
+        $this->ar->debit(50000, 'Future invoice', $futureDate);
+
+        $report = AgingReport::generate(AccountType::ASSET, $asOf);
+
+        // Future-dated invoice should NOT be included
+        $this->assertEquals(100000, $report['total_outstanding']);
+    }
+
+    #[Test]
+    public function aging_report_returns_empty_for_equity_account_type(): void
+    {
+        // Equity accounts have no sub_type filter; empty result expected with no entries
+        $report = AgingReport::generate(AccountType::EQUITY);
+
+        $this->assertEquals(0, $report['total_outstanding']);
+        $this->assertEmpty($report['details']);
+    }
+
+    // -------------------------------------------------------
+    // BalanceSheet period start parameter (H21)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function balance_sheet_uses_custom_period_start_for_net_income(): void
+    {
+        // Revenue in Q1
+        $this->revenue->credit(10000, 'Q1 sale', Carbon::parse('2025-03-01'));
+
+        // With default period start (Jan 1 2025), net income includes Q1 revenue
+        $defaultReport = BalanceSheet::generate(Carbon::parse('2025-06-30'));
+        $this->assertGreaterThan(0, $defaultReport['total_equity']);
+
+        // With period start of July 1 2025, Q1 revenue is excluded from net income
+        $customReport = BalanceSheet::generate(
+            Carbon::parse('2025-12-31'),
+            'USD',
+            Carbon::parse('2025-07-01'),
+        );
+        // No revenue posted between Jul-Dec, so net income should be 0
+        $this->assertEquals(0, $customReport['total_equity']);
     }
 }

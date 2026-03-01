@@ -6,8 +6,29 @@ namespace App\Accounting\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * A journal entry groups one or more LedgerEntry rows into a balanced transaction.
+ *
+ * Primary key is a UUID string (not auto-increment) to allow safe generation
+ * before the record is persisted.
+ *
+ * Lifecycle:
+ *   draft (is_posted=false) → post() → posted (is_posted=true)
+ *   posted → unpost() → draft
+ *   posted → reverse() → new posted reversal JournalEntry
+ *   posted → void()    → new posted void JournalEntry (same date, VOID: prefix)
+ *
+ * All state transitions are wrapped in a database transaction.
+ *
+ * @property string   $id
+ * @property \Carbon\Carbon $date
+ * @property string|null $reference_number
+ * @property string|null $memo
+ * @property bool     $is_posted
+ */
 class JournalEntry extends Model
 {
     protected $table = 'accounting_journal_entries';
@@ -37,7 +58,7 @@ class JournalEntry extends Model
         parent::boot();
 
         static::creating(function (JournalEntry $entry) {
-            if (empty($entry->id)) {
+            if (!isset($entry->id) || $entry->id === '') {
                 $entry->id = (string) Str::uuid();
             }
 
@@ -82,7 +103,11 @@ class JournalEntry extends Model
 
     /**
      * Post this journal entry and all its ledger entries.
-     * Recalculates running balances and affected account balances.
+     * Resequences running balances and recalculates affected account cached balances.
+     *
+     * Wrapped in a DB transaction. Bulk-sets is_posted before the resequence pass
+     * so that multi-line entries hitting the same account use the correct cumulative
+     * balance (fixes C2: stale running_balance for same-account multi-line entries).
      */
     public function post(): self
     {
@@ -90,42 +115,37 @@ class JournalEntry extends Model
             return $this;
         }
 
-        $this->is_posted = true;
-        $this->saveQuietly();
+        DB::transaction(function () {
+            // Mark the journal entry posted
+            $this->is_posted = true;
+            $this->saveQuietly();
 
-        // Post each ledger entry and recompute its running balance
-        foreach ($this->ledgerEntries()->get() as $entry) {
-            $account = $entry->account;
+            // Collect entries and unique account IDs without a second query
+            $entries = $this->ledgerEntries()->with('account')->get();
+            $accountIds = $entries->pluck('account_id')->unique()->values()->all();
 
-            $lastEntry = LedgerEntry::where('account_id', $entry->account_id)
-                ->where('is_posted', true)
-                ->latest('id')
-                ->first();
+            // Bulk-set is_posted = true on all ledger entries in one query so
+            // subsequent balance queries include them before we resequence
+            DB::table('accounting_ledger_entries')
+                ->where('journal_entry_id', $this->id)
+                ->update(['is_posted' => true]);
 
-            $lastBalance = $lastEntry?->running_balance ?? 0;
-
-            if ($account && $account->isDebitNormal()) {
-                $entry->running_balance = $lastBalance + $entry->debit - $entry->credit;
-            } else {
-                $entry->running_balance = $lastBalance + $entry->credit - $entry->debit;
+            // Resequence running balances and refresh cached balances per account
+            foreach ($accountIds as $accountId) {
+                $account = $entries->where('account_id', $accountId)->first()?->account;
+                if ($account) {
+                    $account->resequenceRunningBalances();
+                    $account->recalculateBalance();
+                }
             }
-
-            $entry->is_posted = true;
-            $entry->save();
-        }
-
-        // Recalculate all affected accounts
-        $accountIds = $this->ledgerEntries()->pluck('account_id')->unique();
-        foreach ($accountIds as $accountId) {
-            Account::find($accountId)?->recalculateBalance();
-        }
+        });
 
         return $this;
     }
 
     /**
      * Unpost this journal entry and all its ledger entries.
-     * Recalculates affected account balances.
+     * Resequences remaining posted entries to fix running balances on affected accounts.
      */
     public function unpost(): self
     {
@@ -133,20 +153,27 @@ class JournalEntry extends Model
             return $this;
         }
 
-        $this->is_posted = false;
-        $this->saveQuietly();
+        DB::transaction(function () {
+            $this->is_posted = false;
+            $this->saveQuietly();
 
-        foreach ($this->ledgerEntries()->get() as $entry) {
-            $entry->is_posted = false;
-            $entry->running_balance = 0;
-            $entry->save();
-        }
+            // Collect account IDs before bulk-updating
+            $accountIds = $this->ledgerEntries()->pluck('account_id')->unique()->values()->all();
 
-        // Recalculate all affected accounts
-        $accountIds = $this->ledgerEntries()->pluck('account_id')->unique();
-        foreach ($accountIds as $accountId) {
-            Account::find($accountId)?->recalculateBalance();
-        }
+            // Bulk-unpost all ledger entries; running_balance reset handled below
+            DB::table('accounting_ledger_entries')
+                ->where('journal_entry_id', $this->id)
+                ->update(['is_posted' => false, 'running_balance' => 0]);
+
+            // Resequence remaining posted entries and recalculate cached balances
+            foreach ($accountIds as $accountId) {
+                $account = Account::find($accountId);
+                if ($account) {
+                    $account->resequenceRunningBalances();
+                    $account->recalculateBalance();
+                }
+            }
+        });
 
         return $this;
     }
@@ -166,30 +193,45 @@ class JournalEntry extends Model
             throw new \LogicException('Cannot reverse an unposted journal entry. Post it first or delete the draft.');
         }
 
-        $reversalMemo = $memo ?? "Reversal of {$this->reference_number}";
+        return DB::transaction(function () use ($memo) {
+            $reversalMemo = $memo ?? "Reversal of {$this->reference_number}";
 
-        $reversal = self::create([
-            'date' => now()->toDateString(),
-            'reference_number' => null,
-            'memo' => $reversalMemo,
-            'is_posted' => true,
-        ]);
-
-        foreach ($this->ledgerEntries as $entry) {
-            $reversal->ledgerEntries()->create([
-                'account_id' => $entry->account_id,
-                'debit' => $entry->credit,  // swap
-                'credit' => $entry->debit,  // swap
-                'currency' => $entry->currency,
+            $reversal = self::create([
+                'date' => now()->toDateString(),
+                'reference_number' => null,
                 'memo' => $reversalMemo,
-                'post_date' => now(),
+                'is_posted' => true,
             ]);
 
-            // Recalculate the affected account's balance
-            $entry->account->recalculateBalance();
-        }
+            // Eager-load accounts to avoid N+1 per reversal entry
+            $originalEntries = $this->ledgerEntries()->with('account')->get();
 
-        return $reversal;
+            foreach ($originalEntries as $entry) {
+                $reversal->ledgerEntries()->create([
+                    'account_id' => $entry->account_id,
+                    'debit' => $entry->credit,  // swap
+                    'credit' => $entry->debit,  // swap
+                    'currency' => $entry->currency,
+                    'memo' => $reversalMemo,
+                    'post_date' => now(),
+                ]);
+            }
+
+            // Collect all affected account IDs from both the original and reversal entries
+            $originalAccountIds = $originalEntries->pluck('account_id')->unique()->values()->all();
+            $reversalAccountIds = $reversal->ledgerEntries()->pluck('account_id')->unique()->values()->all();
+            $allAccountIds = array_unique(array_merge($originalAccountIds, $reversalAccountIds));
+
+            foreach ($allAccountIds as $accountId) {
+                $account = Account::find($accountId);
+                if ($account) {
+                    $account->resequenceRunningBalances();
+                    $account->recalculateBalance();
+                }
+            }
+
+            return $reversal;
+        });
     }
 
     /**
@@ -203,28 +245,44 @@ class JournalEntry extends Model
             throw new \LogicException('Cannot void an unposted journal entry. Post it first or delete the draft.');
         }
 
-        $voidMemo = "VOID: {$this->memo}";
+        return DB::transaction(function () {
+            $voidMemo = "VOID: {$this->memo}";
 
-        $void = self::create([
-            'date' => $this->date,
-            'reference_number' => null,
-            'memo' => $voidMemo,
-            'is_posted' => true,
-        ]);
-
-        foreach ($this->ledgerEntries as $entry) {
-            $void->ledgerEntries()->create([
-                'account_id' => $entry->account_id,
-                'debit' => $entry->credit,
-                'credit' => $entry->debit,
-                'currency' => $entry->currency,
+            $void = self::create([
+                'date' => $this->date,
+                'reference_number' => null,
                 'memo' => $voidMemo,
-                'post_date' => $entry->post_date,
+                'is_posted' => true,
             ]);
 
-            $entry->account->recalculateBalance();
-        }
+            // Eager-load accounts to avoid N+1 per void entry
+            $originalEntries = $this->ledgerEntries()->with('account')->get();
 
-        return $void;
+            foreach ($originalEntries as $entry) {
+                $void->ledgerEntries()->create([
+                    'account_id' => $entry->account_id,
+                    'debit' => $entry->credit,
+                    'credit' => $entry->debit,
+                    'currency' => $entry->currency,
+                    'memo' => $voidMemo,
+                    'post_date' => $entry->post_date,
+                ]);
+            }
+
+            // Collect all affected account IDs from both the original and void entries
+            $originalAccountIds = $originalEntries->pluck('account_id')->unique()->values()->all();
+            $voidAccountIds = $void->ledgerEntries()->pluck('account_id')->unique()->values()->all();
+            $allAccountIds = array_unique(array_merge($originalAccountIds, $voidAccountIds));
+
+            foreach ($allAccountIds as $accountId) {
+                $account = Account::find($accountId);
+                if ($account) {
+                    $account->resequenceRunningBalances();
+                    $account->recalculateBalance();
+                }
+            }
+
+            return $void;
+        });
     }
 }

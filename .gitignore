@@ -12,6 +12,9 @@
 !.claude/logs/.gitkeep
 
 # Environment secrets (NEVER commit)
+.env
+.env.*
+!.env.example
 .claude/.env
 
 # Local config overrides (optional, user-specific)

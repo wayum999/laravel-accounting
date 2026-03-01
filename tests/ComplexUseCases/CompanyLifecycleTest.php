@@ -330,9 +330,9 @@ class CompanyLifecycleTest extends TestCase
             ->credit($revenue, 500000, 'Revenue from invoice', $invoiceRef)
             ->commit();
 
-        // Both entries should reference the invoice
+        // Both entries should reference the invoice (stored as the morph alias)
         foreach ($je->ledgerEntries as $entry) {
-            $this->assertEquals(get_class($invoiceRef), $entry->ledgerable_type);
+            $this->assertEquals($invoiceRef->getMorphClass(), $entry->ledgerable_type);
             $this->assertEquals($invoiceRef->id, $entry->ledgerable_id);
 
             $resolved = $entry->getReferencedModel();

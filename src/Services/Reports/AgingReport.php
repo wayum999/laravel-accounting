@@ -8,6 +8,7 @@ use App\Accounting\Enums\AccountSubType;
 use App\Accounting\Enums\AccountType;
 use App\Accounting\Models\Account;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AgingReport
 {
@@ -23,6 +24,12 @@ class AgingReport
 
     /**
      * Generate an aging report for receivables or payables.
+     *
+     * Uses database-side conditional aggregation to compute bucket totals, avoiding
+     * loading unbounded ledger entry history into PHP memory.
+     *
+     * Future-dated entries (post_date > $asOf) are excluded from all buckets rather
+     * than being incorrectly bucketed by an absolute day difference.
      *
      * @param  AccountType  $type  Typically ASSET (for AR aging) or LIABILITY (for AP aging)
      * @param  Carbon|null  $asOf  Date to calculate aging from
@@ -60,44 +67,48 @@ class AgingReport
         $summaryTotals = array_fill(0, count($buckets), 0);
         $totalOutstanding = 0;
 
-        foreach ($accounts as $account) {
-            $accountBuckets = array_fill(0, count($buckets), 0);
-            $accountTotal = 0;
+        $asOfDate = $asOf->toDateString();
 
-            // Get all posted unmatched/outstanding entries for this account
-            $entries = $account->ledgerEntries()
+        foreach ($accounts as $account) {
+            $isDebitNormal = $account->isDebitNormal();
+
+            // Amount expression: positive net balance in the account's normal direction.
+            // Using CASE WHEN instead of GREATEST() for cross-database compatibility
+            // (SQLite does not support GREATEST(); MySQL/PostgreSQL do).
+            $netExpr = $isDebitNormal
+                ? 'COALESCE(debit, 0) - COALESCE(credit, 0)'
+                : 'COALESCE(credit, 0) - COALESCE(debit, 0)';
+            $amountExpr = "CASE WHEN ({$netExpr}) > 0 THEN ({$netExpr}) ELSE 0 END";
+
+            // Signed days aged: positive = past, negative = future-dated (excluded)
+            // DATEDIFF is MySQL/Postgres; use strftime diff for SQLite compatibility
+            $daysDiffExpr = "(JULIANDAY('{$asOfDate}') - JULIANDAY(DATE(post_date)))";
+
+            $selectParts = ["SUM({$amountExpr}) as account_total"];
+
+            foreach ($buckets as $index => $bucket) {
+                $min = (int) $bucket['min'];
+                $max = $bucket['max'];
+
+                if ($max === null) {
+                    $bucketCondition = "{$daysDiffExpr} >= {$min}";
+                } else {
+                    $bucketMax = (int) $max;
+                    $bucketCondition = "{$daysDiffExpr} BETWEEN {$min} AND {$bucketMax}";
+                }
+
+                // Exclude future-dated entries (negative day diff)
+                $selectParts[] = "SUM(CASE WHEN {$daysDiffExpr} >= 0 AND {$bucketCondition} THEN {$amountExpr} ELSE 0 END) as bucket_{$index}";
+            }
+
+            $row = DB::table('accounting_ledger_entries')
+                ->where('account_id', $account->id)
                 ->where('is_posted', true)
                 ->where('post_date', '<=', $asOf->copy()->endOfDay())
-                ->orderBy('post_date')
-                ->get();
+                ->selectRaw(implode(', ', $selectParts))
+                ->first();
 
-            foreach ($entries as $entry) {
-                // Calculate the amount for this entry
-                $amount = $account->isDebitNormal()
-                    ? $entry->debit - $entry->credit
-                    : $entry->credit - $entry->debit;
-
-                if ($amount <= 0) {
-                    continue;
-                }
-
-                // Calculate days aged
-                $daysAged = $entry->post_date->diffInDays($asOf);
-
-                // Place into appropriate bucket
-                foreach ($buckets as $index => $bucket) {
-                    $min = $bucket['min'];
-                    $max = $bucket['max'];
-
-                    if ($daysAged >= $min && ($max === null || $daysAged <= $max)) {
-                        $accountBuckets[$index] += $amount;
-                        $summaryTotals[$index] += $amount;
-                        break;
-                    }
-                }
-
-                $accountTotal += $amount;
-            }
+            $accountTotal = $row ? (int) $row->account_total : 0;
 
             if ($accountTotal === 0) {
                 continue;
@@ -107,9 +118,11 @@ class AgingReport
 
             $bucketDetail = [];
             foreach ($buckets as $index => $bucket) {
+                $bucketAmount = $row ? (int) ($row->{"bucket_{$index}"} ?? 0) : 0;
+                $summaryTotals[$index] += $bucketAmount;
                 $bucketDetail[] = [
                     'label' => $bucket['label'],
-                    'amount' => $accountBuckets[$index],
+                    'amount' => $bucketAmount,
                 ];
             }
 

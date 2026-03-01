@@ -15,6 +15,21 @@ use Illuminate\Support\Facades\DB;
 use Money\Currency;
 use Money\Money;
 
+/**
+ * Fluent builder for double-entry transactions.
+ *
+ * Usage:
+ *   TransactionBuilder::create()
+ *       ->date('2025-01-15')
+ *       ->memo('Sale')
+ *       ->debit($cashAccount, 10000)
+ *       ->credit($revenueAccount, 10000)
+ *       ->commit();
+ *
+ * Validates that total debits equal total credits before persisting.
+ * All writes are wrapped in a single DB transaction.
+ * For draft (unposted) transactions call ->draft() before ->commit().
+ */
 class TransactionBuilder
 {
     private array $entries = [];
@@ -174,6 +189,7 @@ class TransactionBuilder
                 'is_posted' => $isPosted,
             ]);
 
+            /** @var Account[] $affectedAccounts */
             $affectedAccounts = [];
 
             foreach ($this->entries as $entry) {
@@ -185,16 +201,19 @@ class TransactionBuilder
                     'memo' => $entry['memo'],
                     'post_date' => ($this->date ?? now()),
                     'is_posted' => $isPosted,
-                    'ledgerable_type' => $entry['reference'] ? get_class($entry['reference']) : null,
+                    'ledgerable_type' => $entry['reference'] ? $entry['reference']->getMorphClass() : null,
                     'ledgerable_id' => $entry['reference']?->getKey(),
                 ]);
 
                 $affectedAccounts[$entry['account']->id] = $entry['account'];
             }
 
-            // Recalculate all affected account balances (only needed for posted)
+            // Resequence running balances and update cached balances (posted only).
+            // The creating hook sets running_balance = 0, so this is where the
+            // correct sequential values are assigned.
             if ($isPosted) {
                 foreach ($affectedAccounts as $account) {
+                    $account->resequenceRunningBalances();
                     $account->recalculateBalance();
                 }
             }
