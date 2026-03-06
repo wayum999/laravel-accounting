@@ -29,4 +29,14 @@ accounting-master
 node_modules
 .claude
 .phpunit.result.cache
-vendor
+vendor/
+_reference/
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+MEMORY.md
+SOUL.md
+TOOLS.md
+USER.md
+.openclaw
