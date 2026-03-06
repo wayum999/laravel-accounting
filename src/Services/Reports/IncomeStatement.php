@@ -32,7 +32,7 @@ class IncomeStatement
      * debit-normal; their balance() returns a negative value which naturally
      * reduces total_revenue without special-casing.
      *
-     * @return array{revenue: array, cost_of_goods_sold: array, gross_profit: int, operating_expenses: array, operating_income: int, other_income: array, other_expenses: array, net_income: int, total_revenue: int, total_cogs: int, total_operating_expenses: int, total_other_income: int, total_other_expenses: int, period_start: string, period_end: string, currency: string}
+     * @return array{income: array, expenses: array, total_income: int, total_expenses: int, revenue: array, cost_of_goods_sold: array, gross_profit: int, operating_expenses: array, uncategorised_expenses: array, operating_income: int, other_income: array, other_expenses: array, net_income: int, total_revenue: int, total_cogs: int, total_operating_expenses: int, total_other_income: int, total_other_expenses: int, period_start: string, period_end: string, currency: string}
      */
     public static function generate(Carbon $from, Carbon $to, string $currency = 'USD'): array
     {
@@ -182,11 +182,20 @@ class IncomeStatement
             $totalOtherExpenses += $balance;
         }
 
+        $totalIncome = $totalRevenue + $totalOtherIncome;
+        $totalExpenses = $totalCogs + $totalOperating + $totalOtherExpenses;
         $grossProfit = $totalRevenue - $totalCogs;
         $operatingIncome = $grossProfit - $totalOperating;
         $netIncome = $operatingIncome + $totalOtherIncome - $totalOtherExpenses;
 
         return [
+            // Backward-compatible flat arrays (deprecated — use detailed keys below)
+            'income' => array_merge($revenueRows, $otherIncomeRows),
+            'expenses' => array_merge($cogsRows, $operatingRows, $otherExpenseRows),
+            'total_income' => $totalIncome,
+            'total_expenses' => $totalExpenses,
+
+            // Detailed structure
             'revenue' => $revenueRows,
             'cost_of_goods_sold' => $cogsRows,
             'gross_profit' => $grossProfit,

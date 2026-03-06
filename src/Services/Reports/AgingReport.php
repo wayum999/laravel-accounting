@@ -81,8 +81,13 @@ class AgingReport
             $amountExpr = "CASE WHEN ({$netExpr}) > 0 THEN ({$netExpr}) ELSE 0 END";
 
             // Signed days aged: positive = past, negative = future-dated (excluded)
-            // DATEDIFF is MySQL/Postgres; use strftime diff for SQLite compatibility
-            $daysDiffExpr = "(JULIANDAY('{$asOfDate}') - JULIANDAY(DATE(post_date)))";
+            // Branch on database driver for cross-DB compatibility
+            $driver = DB::getDriverName();
+            $daysDiffExpr = match ($driver) {
+                'mysql' => "(DATEDIFF('{$asOfDate}', DATE(post_date)))",
+                'pgsql' => "('{$asOfDate}'::date - post_date::date)",
+                default => "(JULIANDAY('{$asOfDate}') - JULIANDAY(DATE(post_date)))",
+            };
 
             $selectParts = ["SUM({$amountExpr}) as account_total"];
 
