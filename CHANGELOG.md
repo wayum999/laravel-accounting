@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+### BREAKING CHANGES
+- **`AccountType::INCOME` renamed to `AccountType::REVENUE`** — any consumer code
+  referencing `AccountType::INCOME` must be updated to `AccountType::REVENUE`.
+  The database column value changed from `'income'` to `'revenue'`; migration
+  `2026_03_06_000008` handles existing rows automatically.
+- **New account types `OTHER_INCOME` and `OTHER_EXPENSE`** — non-operating income/expense
+  accounts are now separate types (previously there was only `INCOME` and `EXPENSE`).
+  Migration `2026_03_06_000009` reclassifies existing `gain`/`loss` rows and
+  `sub_type=other_expense` accounts.
 
 ### Fixed
 - **Critical: TOCTOU race condition in `LedgerEntry::creating` hook** — `running_balance`
