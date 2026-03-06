@@ -75,10 +75,10 @@ Every financial transaction is recorded as at least one debit and one credit of 
 | `EQUITY` | Credit Balance | Credit | Owner's Equity, Retained Earnings |
 | `REVENUE` | Credit Balance | Credit | Sales Revenue, Service Fees |
 | `EXPENSE` | Debit Balance | Debit | Salaries, Rent, Cost of Goods Sold |
-| `GAIN` | Credit Balance | Credit | Gain on Sale of Assets, Insurance Recoveries |
-| `LOSS` | Debit Balance | Debit | Loss on Sale of Assets, Lawsuit Settlements |
+| `OTHER_INCOME` | Credit Balance | Credit | Gain on Sale of Assets, Insurance Recoveries |
+| `OTHER_EXPENSE` | Debit Balance | Debit | Loss on Sale of Assets, Lawsuit Settlements |
 
-GAIN and LOSS are used for non-operating items that appear below operating income on the income statement.
+`OTHER_INCOME` and `OTHER_EXPENSE` are used for non-operating items that appear below operating income on the income statement.
 
 ### Account Sub-Types
 
@@ -90,9 +90,9 @@ Accounts are further classified by sub-type, following the QuickBooks model. Sub
 | Liability | `ACCOUNTS_PAYABLE`, `CREDIT_CARD`, `OTHER_CURRENT_LIABILITY`, `LONG_TERM_LIABILITY` |
 | Equity | `OWNERS_EQUITY`, `RETAINED_EARNINGS` |
 | Revenue | `REVENUE`, `OTHER_INCOME` |
-| Gain | `GAIN_ON_SALE`, `OTHER_GAIN` |
-| Loss | `LOSS_ON_SALE`, `OTHER_LOSS` |
-| Expense | `COST_OF_GOODS_SOLD`, `OPERATING_EXPENSE`, `OTHER_EXPENSE` |
+| Other Income | `GAIN_ON_SALE`, `OTHER_GAIN` |
+| Expense | `COST_OF_GOODS_SOLD`, `OPERATING_EXPENSE` |
+| Other Expense | `LOSS_ON_SALE`, `OTHER_LOSS`, `OTHER_EXPENSE` |
 
 ```php
 use App\Accounting\Enums\AccountType;
@@ -335,8 +335,8 @@ $journalEntry = TransactionBuilder::create()
 
 | Account Type | `increase()` | `decrease()` |
 |-------------|-------------|-------------|
-| Asset, Expense, Loss (debit balance) | Debit | Credit |
-| Liability, Equity, Revenue, Gain (credit balance) | Credit | Debit |
+| Asset, Expense, Other Expense (debit balance) | Debit | Credit |
+| Liability, Equity, Revenue, Other Income (credit balance) | Credit | Debit |
 
 ### Referencing Models
 
@@ -800,8 +800,8 @@ The `account_id` foreign key on ledger entries uses `RESTRICT` on delete — an 
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `isDebitNormal()` | `bool` | True for debit balance types (ASSET, EXPENSE, LOSS) |
-| `isCreditNormal()` | `bool` | True for credit balance types (LIABILITY, EQUITY, REVENUE, GAIN) |
+| `isDebitNormal()` | `bool` | True for debit balance types (ASSET, EXPENSE, OTHER_EXPENSE) |
+| `isCreditNormal()` | `bool` | True for credit balance types (LIABILITY, EQUITY, REVENUE, OTHER_INCOME) |
 | `balanceSign()` | `int` | `1` for debit balance, `-1` for credit balance |
 | `label()` | `string` | Human-readable label |
 | `values()` | `array` | All enum string values |

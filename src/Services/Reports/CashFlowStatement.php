@@ -39,18 +39,12 @@ class CashFlowStatement
         $startOfDay = $from->copy()->startOfDay();
         $endOfDay = $to->copy()->endOfDay();
 
-        // Fetch cash entries with the contra-account type resolved via a selective JOIN.
-        // Only the contra-account's type field is needed; this avoids eager-loading the
-        // full journalEntry.ledgerEntries.account nested graph.
+        // Fetch cash entries with a single representative contra-account type resolved via a
+        // correlated subquery. Using a JOIN instead produces N rows per cash entry when the
+        // journal has N contra lines (e.g. cash DR / rev1 CR / rev2 CR → two rows, both
+        // carrying the full cash_effect, doubling the total). The correlated subquery picks
+        // exactly one contra per cash entry, avoiding the duplication.
         $cashEntries = DB::table('accounting_ledger_entries as cash_entry')
-            ->join(
-                'accounting_ledger_entries as contra_entry',
-                function ($join) {
-                    $join->on('contra_entry.journal_entry_id', '=', 'cash_entry.journal_entry_id')
-                        ->whereColumn('contra_entry.id', '!=', 'cash_entry.id');
-                }
-            )
-            ->join('accounting_accounts as contra_account', 'contra_account.id', '=', 'contra_entry.account_id')
             ->whereIn('cash_entry.account_id', $cashAccountIds)
             ->where('cash_entry.is_posted', true)
             ->whereBetween('cash_entry.post_date', [$startOfDay, $endOfDay])
@@ -59,7 +53,13 @@ class CashFlowStatement
                 'cash_entry.memo',
                 'cash_entry.post_date',
                 DB::raw('cash_entry.debit - cash_entry.credit as cash_effect'),
-                'contra_account.type as contra_type',
+                DB::raw('(SELECT a.type
+                          FROM accounting_ledger_entries le
+                          JOIN accounting_accounts a ON a.id = le.account_id
+                          WHERE le.journal_entry_id = cash_entry.journal_entry_id
+                            AND le.id != cash_entry.id
+                          ORDER BY le.id
+                          LIMIT 1) as contra_type'),
             )
             ->get();
 
