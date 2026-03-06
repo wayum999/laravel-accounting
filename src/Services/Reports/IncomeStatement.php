@@ -15,17 +15,32 @@ class IncomeStatement
     /**
      * Generate an income statement (profit & loss) for a date range.
      *
-     * Uses a single GROUP BY query per account type (income / expense) to fetch all
-     * debit/credit sums in two round-trips, eliminating the N+1 pattern.
+     * Structure follows the QuickBooks multi-step format:
+     *   Revenue (operating) + contra-revenue (discounts, returns)
+     *   − Cost of Goods Sold
+     *   = Gross Profit
+     *   − Operating Expenses
+     *   = Operating Income
+     *   + Other Income (non-operating: interest, gains on sale, etc.)
+     *   − Other Expenses (non-operating: losses on sale, etc.)
+     *   = Net Income
      *
-     * @return array{income: array, expenses: array, total_income: int, total_expenses: int, net_income: int, revenue: array, cost_of_goods_sold: array, gross_profit: int, operating_expenses: array, operating_income: int, other_income: array, other_expenses: array, total_revenue: int, total_cogs: int, total_operating_expenses: int, total_other_income: int, total_other_expenses: int, period_start: string, period_end: string, currency: string}
+     * Uses a single GROUP BY query per account type to fetch all
+     * debit/credit sums in four round-trips, eliminating the N+1 pattern.
+     *
+     * Contra-revenue accounts (SALES_DISCOUNTS, SALES_RETURNS_ALLOWANCES) are
+     * debit-normal; their balance() returns a negative value which naturally
+     * reduces total_revenue without special-casing.
+     *
+     * @return array{revenue: array, cost_of_goods_sold: array, gross_profit: int, operating_expenses: array, operating_income: int, other_income: array, other_expenses: array, net_income: int, total_revenue: int, total_cogs: int, total_operating_expenses: int, total_other_income: int, total_other_expenses: int, period_start: string, period_end: string, currency: string}
      */
     public static function generate(Carbon $from, Carbon $to, string $currency = 'USD'): array
     {
         $startOfDay = $from->copy()->startOfDay();
         $endOfDay = $to->copy()->endOfDay();
 
-        $incomeAccounts = Account::where('type', AccountType::INCOME)
+        // Fetch all four account-type groups
+        $revenueAccounts = Account::where('type', AccountType::REVENUE)
             ->where('currency', $currency)
             ->where('is_active', true)
             ->orderBy('code')
@@ -37,71 +52,61 @@ class IncomeStatement
             ->orderBy('code')
             ->get();
 
-        // Single aggregate query for all income accounts
-        $incomeBalanceMap = self::fetchBalanceMap(
-            $incomeAccounts->pluck('id')->all(),
-            $startOfDay,
-            $endOfDay,
-        );
+        $otherIncomeAccounts = Account::where('type', AccountType::OTHER_INCOME)
+            ->where('currency', $currency)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
 
-        // Single aggregate query for all expense accounts
-        $expenseBalanceMap = self::fetchBalanceMap(
-            $expenseAccounts->pluck('id')->all(),
-            $startOfDay,
-            $endOfDay,
-        );
+        $otherExpenseAccounts = Account::where('type', AccountType::OTHER_EXPENSE)
+            ->where('currency', $currency)
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
 
-        // Categorize income
+        // Single aggregate query per account-type group
+        $revenueBalanceMap = self::fetchBalanceMap($revenueAccounts->pluck('id')->all(), $startOfDay, $endOfDay);
+        $expenseBalanceMap = self::fetchBalanceMap($expenseAccounts->pluck('id')->all(), $startOfDay, $endOfDay);
+        $otherIncomeBalanceMap = self::fetchBalanceMap($otherIncomeAccounts->pluck('id')->all(), $startOfDay, $endOfDay);
+        $otherExpenseBalanceMap = self::fetchBalanceMap($otherExpenseAccounts->pluck('id')->all(), $startOfDay, $endOfDay);
+
+        // --- Revenue (operating) ---
+        // Contra-revenue accounts (SALES_DISCOUNTS, SALES_RETURNS_ALLOWANCES) are debit-normal.
+        // balance = credits - debits yields a negative value for these, naturally reducing revenue.
         $revenueRows = [];
-        $otherIncomeRows = [];
         $totalRevenue = 0;
-        $totalOtherIncome = 0;
 
-        foreach ($incomeAccounts as $account) {
-            $row = $incomeBalanceMap->get($account->id);
+        foreach ($revenueAccounts as $account) {
+            $row = $revenueBalanceMap->get($account->id);
             $credits = $row ? (int) $row->total_credit : 0;
             $debits = $row ? (int) $row->total_debit : 0;
-
-            // Income is credit-normal: balance = credits - debits
             $balance = $credits - $debits;
 
             if ($balance === 0) {
                 continue;
             }
 
-            $entry = [
+            $revenueRows[] = [
                 'account_id' => $account->id,
                 'code' => $account->code,
                 'name' => $account->name,
                 'sub_type' => $account->sub_type,
                 'amount' => $balance,
             ];
-
-            if ($account->sub_type === AccountSubType::OTHER_INCOME) {
-                $otherIncomeRows[] = $entry;
-                $totalOtherIncome += $balance;
-            } else {
-                // Accounts with null sub_type fall into revenue (main income bucket)
-                $revenueRows[] = $entry;
-                $totalRevenue += $balance;
-            }
+            $totalRevenue += $balance;
         }
 
-        // Categorize expenses
+        // --- Expenses (operating) ---
         $cogsRows = [];
         $operatingRows = [];
-        $otherExpenseRows = [];
         $uncategorisedRows = [];
         $totalCogs = 0;
         $totalOperating = 0;
-        $totalOtherExpenses = 0;
 
         foreach ($expenseAccounts as $account) {
             $row = $expenseBalanceMap->get($account->id);
             $debits = $row ? (int) $row->total_debit : 0;
             $credits = $row ? (int) $row->total_credit : 0;
-
-            // Expense is debit-normal: balance = debits - credits
             $balance = $debits - $credits;
 
             if ($balance === 0) {
@@ -119,12 +124,8 @@ class IncomeStatement
             if ($account->sub_type === AccountSubType::COST_OF_GOODS_SOLD) {
                 $cogsRows[] = $entry;
                 $totalCogs += $balance;
-            } elseif ($account->sub_type === AccountSubType::OTHER_EXPENSE) {
-                $otherExpenseRows[] = $entry;
-                $totalOtherExpenses += $balance;
             } elseif ($account->sub_type === null) {
-                // Null sub_type: route to an explicit uncategorised bucket rather than
-                // silently promoting to operating expenses (prevents silent misclassification)
+                // Null sub_type: explicit uncategorised bucket prevents silent misclassification
                 $uncategorisedRows[] = $entry;
                 $totalOperating += $balance;
             } else {
@@ -133,20 +134,59 @@ class IncomeStatement
             }
         }
 
-        $totalIncome = $totalRevenue + $totalOtherIncome;
-        $totalExpenses = $totalCogs + $totalOperating + $totalOtherExpenses;
+        // --- Other Income (non-operating) ---
+        $otherIncomeRows = [];
+        $totalOtherIncome = 0;
+
+        foreach ($otherIncomeAccounts as $account) {
+            $row = $otherIncomeBalanceMap->get($account->id);
+            $credits = $row ? (int) $row->total_credit : 0;
+            $debits = $row ? (int) $row->total_debit : 0;
+            $balance = $credits - $debits;
+
+            if ($balance === 0) {
+                continue;
+            }
+
+            $otherIncomeRows[] = [
+                'account_id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->name,
+                'sub_type' => $account->sub_type,
+                'amount' => $balance,
+            ];
+            $totalOtherIncome += $balance;
+        }
+
+        // --- Other Expenses (non-operating) ---
+        $otherExpenseRows = [];
+        $totalOtherExpenses = 0;
+
+        foreach ($otherExpenseAccounts as $account) {
+            $row = $otherExpenseBalanceMap->get($account->id);
+            $debits = $row ? (int) $row->total_debit : 0;
+            $credits = $row ? (int) $row->total_credit : 0;
+            $balance = $debits - $credits;
+
+            if ($balance === 0) {
+                continue;
+            }
+
+            $otherExpenseRows[] = [
+                'account_id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->name,
+                'sub_type' => $account->sub_type,
+                'amount' => $balance,
+            ];
+            $totalOtherExpenses += $balance;
+        }
+
         $grossProfit = $totalRevenue - $totalCogs;
         $operatingIncome = $grossProfit - $totalOperating;
+        $netIncome = $operatingIncome + $totalOtherIncome - $totalOtherExpenses;
 
         return [
-            // Backward-compatible flat arrays
-            'income' => array_merge($revenueRows, $otherIncomeRows),
-            'expenses' => array_merge($cogsRows, $operatingRows, $uncategorisedRows, $otherExpenseRows),
-            'total_income' => $totalIncome,
-            'total_expenses' => $totalExpenses,
-            'net_income' => $totalIncome - $totalExpenses,
-
-            // Detailed structure
             'revenue' => $revenueRows,
             'cost_of_goods_sold' => $cogsRows,
             'gross_profit' => $grossProfit,
@@ -155,6 +195,8 @@ class IncomeStatement
             'operating_income' => $operatingIncome,
             'other_income' => $otherIncomeRows,
             'other_expenses' => $otherExpenseRows,
+            'net_income' => $netIncome,
+
             'total_revenue' => $totalRevenue,
             'total_cogs' => $totalCogs,
             'total_operating_expenses' => $totalOperating,

@@ -29,7 +29,7 @@ class TransactionBuilderTest extends TestCase
         parent::setUp();
 
         $this->cash = Account::create(['name' => 'Cash', 'code' => '1000', 'type' => AccountType::ASSET]);
-        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME]);
+        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE]);
         $this->expense = Account::create(['name' => 'Rent', 'code' => '5000', 'type' => AccountType::EXPENSE]);
         $this->ar = Account::create(['name' => 'AR', 'code' => '1100', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::ACCOUNTS_RECEIVABLE]);
         $this->ap = Account::create(['name' => 'AP', 'code' => '2000', 'type' => AccountType::LIABILITY, 'sub_type' => AccountSubType::ACCOUNTS_PAYABLE]);

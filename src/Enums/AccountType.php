@@ -9,8 +9,10 @@ enum AccountType: string
     case ASSET = 'asset';
     case LIABILITY = 'liability';
     case EQUITY = 'equity';
-    case INCOME = 'income';
+    case REVENUE = 'revenue';
     case EXPENSE = 'expense';
+    case OTHER_INCOME = 'other_income';
+    case OTHER_EXPENSE = 'other_expense';
 
     /**
      * Get all enum string values.
@@ -22,19 +24,19 @@ enum AccountType: string
 
     /**
      * Whether this account type has a normal debit balance.
-     * Assets and Expenses increase with debits.
+     * Assets, Expenses, and Other Expenses increase with debits.
      */
     public function isDebitNormal(): bool
     {
         return match ($this) {
-            self::ASSET, self::EXPENSE => true,
+            self::ASSET, self::EXPENSE, self::OTHER_EXPENSE => true,
             default => false,
         };
     }
 
     /**
      * Whether this account type has a normal credit balance.
-     * Liabilities, Equity, and Income increase with credits.
+     * Liabilities, Equity, Revenue, and Other Income increase with credits.
      */
     public function isCreditNormal(): bool
     {
@@ -60,8 +62,10 @@ enum AccountType: string
             self::ASSET => 'Asset',
             self::LIABILITY => 'Liability',
             self::EQUITY => 'Equity',
-            self::INCOME => 'Income',
+            self::REVENUE => 'Revenue',
             self::EXPENSE => 'Expense',
+            self::OTHER_INCOME => 'Other Income',
+            self::OTHER_EXPENSE => 'Other Expense',
         };
     }
 }

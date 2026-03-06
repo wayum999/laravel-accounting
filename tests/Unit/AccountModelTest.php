@@ -83,7 +83,7 @@ class AccountModelTest extends TestCase
     #[Test]
     public function it_computes_balance_for_credit_normal_account(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $account->credit(5000, 'Sale');
         $account->credit(3000, 'Sale 2');
@@ -138,7 +138,7 @@ class AccountModelTest extends TestCase
     #[Test]
     public function it_posts_credit_entries(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $entry = $account->credit(3000, 'Test credit');
 

@@ -31,7 +31,7 @@ class JournalEntryModelTest extends TestCase
     public function it_calculates_total_debits_and_credits(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -84,7 +84,7 @@ class JournalEntryModelTest extends TestCase
     public function it_reverses_a_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -194,7 +194,7 @@ class JournalEntryModelTest extends TestCase
     public function it_can_post_an_unposted_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -245,7 +245,7 @@ class JournalEntryModelTest extends TestCase
     public function it_can_unpost_a_posted_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -438,7 +438,7 @@ class JournalEntryModelTest extends TestCase
     public function reversal_entry_running_balances_are_set_correctly(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         // Post original transaction: DR Cash 5000 / CR Revenue 5000
         $je = JournalEntry::create(['date' => '2025-01-15']);

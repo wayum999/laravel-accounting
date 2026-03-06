@@ -163,7 +163,7 @@ class LedgerEntryModelTest extends TestCase
     #[Test]
     public function it_computes_running_balance_on_creation_credit_normal(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         // Credit-normal: running_balance = cumulative (credit - debit).
         // running_balance is 0 at creation and set by resequenceRunningBalances(),

@@ -51,10 +51,19 @@ class AccountSubTypeEnumTest extends TestCase
     }
 
     #[Test]
-    public function income_sub_types_have_correct_parent(): void
+    public function revenue_sub_types_have_correct_parent(): void
     {
-        $this->assertEquals(AccountType::INCOME, AccountSubType::REVENUE->parentType());
-        $this->assertEquals(AccountType::INCOME, AccountSubType::OTHER_INCOME->parentType());
+        $this->assertEquals(AccountType::REVENUE, AccountSubType::REVENUE->parentType());
+        $this->assertEquals(AccountType::REVENUE, AccountSubType::SALES_DISCOUNTS->parentType());
+        $this->assertEquals(AccountType::REVENUE, AccountSubType::SALES_RETURNS_ALLOWANCES->parentType());
+    }
+
+    #[Test]
+    public function other_income_sub_types_have_correct_parent(): void
+    {
+        $this->assertEquals(AccountType::OTHER_INCOME, AccountSubType::OTHER_INCOME->parentType());
+        $this->assertEquals(AccountType::OTHER_INCOME, AccountSubType::GAIN_ON_SALE->parentType());
+        $this->assertEquals(AccountType::OTHER_INCOME, AccountSubType::OTHER_GAIN->parentType());
     }
 
     #[Test]
@@ -62,7 +71,14 @@ class AccountSubTypeEnumTest extends TestCase
     {
         $this->assertEquals(AccountType::EXPENSE, AccountSubType::COST_OF_GOODS_SOLD->parentType());
         $this->assertEquals(AccountType::EXPENSE, AccountSubType::OPERATING_EXPENSE->parentType());
-        $this->assertEquals(AccountType::EXPENSE, AccountSubType::OTHER_EXPENSE->parentType());
+    }
+
+    #[Test]
+    public function other_expense_sub_types_have_correct_parent(): void
+    {
+        $this->assertEquals(AccountType::OTHER_EXPENSE, AccountSubType::OTHER_EXPENSE->parentType());
+        $this->assertEquals(AccountType::OTHER_EXPENSE, AccountSubType::LOSS_ON_SALE->parentType());
+        $this->assertEquals(AccountType::OTHER_EXPENSE, AccountSubType::OTHER_LOSS->parentType());
     }
 
     #[Test]
@@ -77,9 +93,16 @@ class AccountSubTypeEnumTest extends TestCase
         $this->assertEquals('Long-Term Liabilities', AccountSubType::LONG_TERM_LIABILITY->reportGroup());
         $this->assertEquals('Equity', AccountSubType::OWNERS_EQUITY->reportGroup());
         $this->assertEquals('Revenue', AccountSubType::REVENUE->reportGroup());
+        $this->assertEquals('Revenue', AccountSubType::SALES_DISCOUNTS->reportGroup());
+        $this->assertEquals('Revenue', AccountSubType::SALES_RETURNS_ALLOWANCES->reportGroup());
+        $this->assertEquals('Other Income', AccountSubType::OTHER_INCOME->reportGroup());
+        $this->assertEquals('Other Income', AccountSubType::GAIN_ON_SALE->reportGroup());
+        $this->assertEquals('Other Income', AccountSubType::OTHER_GAIN->reportGroup());
         $this->assertEquals('Cost of Goods Sold', AccountSubType::COST_OF_GOODS_SOLD->reportGroup());
         $this->assertEquals('Operating Expenses', AccountSubType::OPERATING_EXPENSE->reportGroup());
         $this->assertEquals('Other Expenses', AccountSubType::OTHER_EXPENSE->reportGroup());
+        $this->assertEquals('Other Expenses', AccountSubType::LOSS_ON_SALE->reportGroup());
+        $this->assertEquals('Other Expenses', AccountSubType::OTHER_LOSS->reportGroup());
     }
 
     #[Test]
@@ -110,6 +133,10 @@ class AccountSubTypeEnumTest extends TestCase
         $this->assertEquals('Cost of Goods Sold', AccountSubType::COST_OF_GOODS_SOLD->label());
         $this->assertEquals("Owner's Equity", AccountSubType::OWNERS_EQUITY->label());
         $this->assertEquals('Long-Term Liability', AccountSubType::LONG_TERM_LIABILITY->label());
+        $this->assertEquals('Sales Discounts', AccountSubType::SALES_DISCOUNTS->label());
+        $this->assertEquals('Sales Returns & Allowances', AccountSubType::SALES_RETURNS_ALLOWANCES->label());
+        $this->assertEquals('Gain on Sale', AccountSubType::GAIN_ON_SALE->label());
+        $this->assertEquals('Loss on Sale', AccountSubType::LOSS_ON_SALE->label());
     }
 
     #[Test]
@@ -124,16 +151,22 @@ class AccountSubTypeEnumTest extends TestCase
         $equitySubTypes = AccountSubType::forType(AccountType::EQUITY);
         $this->assertCount(2, $equitySubTypes);
 
-        $incomeSubTypes = AccountSubType::forType(AccountType::INCOME);
-        $this->assertCount(2, $incomeSubTypes);
+        $revenueSubTypes = AccountSubType::forType(AccountType::REVENUE);
+        $this->assertCount(3, $revenueSubTypes);
+
+        $otherIncomeSubTypes = AccountSubType::forType(AccountType::OTHER_INCOME);
+        $this->assertCount(3, $otherIncomeSubTypes);
 
         $expenseSubTypes = AccountSubType::forType(AccountType::EXPENSE);
-        $this->assertCount(3, $expenseSubTypes);
+        $this->assertCount(2, $expenseSubTypes);
+
+        $otherExpenseSubTypes = AccountSubType::forType(AccountType::OTHER_EXPENSE);
+        $this->assertCount(3, $otherExpenseSubTypes);
     }
 
     #[Test]
-    public function total_cases_is_seventeen(): void
+    public function total_cases_is_twenty_three(): void
     {
-        $this->assertCount(17, AccountSubType::cases());
+        $this->assertCount(23, AccountSubType::cases());
     }
 }

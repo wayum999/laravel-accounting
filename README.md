@@ -19,6 +19,7 @@ A double-entry accounting package for Laravel. Built on proper accounting princi
 - [API Reference](#api-reference)
 - [Exceptions](#exceptions)
 - [Testing](#testing)
+- [Migrating from a Journal-Based Accounting Model](#migrating-from-a-journal-based-accounting-model)
 
 ---
 
@@ -65,15 +66,19 @@ This creates the following tables:
 
 Every financial transaction is recorded as at least one debit and one credit of equal amounts. The `TransactionBuilder` enforces this rule and throws `UnbalancedTransactionException` if you attempt to commit an unbalanced transaction.
 
-### The Five Account Types
+### The Seven Account Types
 
 | Type | Balance Type | Increases With | Examples |
 |------|---------------|----------------|---------|
 | `ASSET` | Debit Balance | Debit | Cash, Accounts Receivable, Inventory |
 | `LIABILITY` | Credit Balance | Credit | Accounts Payable, Loans Payable |
 | `EQUITY` | Credit Balance | Credit | Owner's Equity, Retained Earnings |
-| `INCOME` | Credit Balance | Credit | Sales Revenue, Service Fees |
+| `REVENUE` | Credit Balance | Credit | Sales Revenue, Service Fees |
 | `EXPENSE` | Debit Balance | Debit | Salaries, Rent, Cost of Goods Sold |
+| `GAIN` | Credit Balance | Credit | Gain on Sale of Assets, Insurance Recoveries |
+| `LOSS` | Debit Balance | Debit | Loss on Sale of Assets, Lawsuit Settlements |
+
+GAIN and LOSS are used for non-operating items that appear below operating income on the income statement.
 
 ### Account Sub-Types
 
@@ -84,7 +89,9 @@ Accounts are further classified by sub-type, following the QuickBooks model. Sub
 | Asset | `BANK`, `ACCOUNTS_RECEIVABLE`, `OTHER_CURRENT_ASSET`, `INVENTORY`, `FIXED_ASSET`, `OTHER_ASSET` |
 | Liability | `ACCOUNTS_PAYABLE`, `CREDIT_CARD`, `OTHER_CURRENT_LIABILITY`, `LONG_TERM_LIABILITY` |
 | Equity | `OWNERS_EQUITY`, `RETAINED_EARNINGS` |
-| Income | `REVENUE`, `OTHER_INCOME` |
+| Revenue | `REVENUE`, `OTHER_INCOME` |
+| Gain | `GAIN_ON_SALE`, `OTHER_GAIN` |
+| Loss | `LOSS_ON_SALE`, `OTHER_LOSS` |
 | Expense | `COST_OF_GOODS_SOLD`, `OPERATING_EXPENSE`, `OTHER_EXPENSE` |
 
 ```php
@@ -157,7 +164,7 @@ $cash = Account::create([
 $revenue = Account::create([
     'name' => 'Sales Revenue',
     'code' => '4000',
-    'type' => AccountType::INCOME,
+    'type' => AccountType::REVENUE,
     'sub_type' => AccountSubType::REVENUE,
     'currency' => 'USD',
 ]);
@@ -202,7 +209,7 @@ ChartOfAccountsSeeder::seedFromTemplate([
     [
         'name' => 'Client Revenue',
         'code' => '4000',
-        'type' => AccountType::INCOME,
+        'type' => AccountType::REVENUE,
         'sub_type' => AccountSubType::REVENUE,
     ],
 ]);
@@ -317,7 +324,7 @@ When you don't want to think about debits and credits, use `increase()` and `dec
 ```php
 $journalEntry = TransactionBuilder::create()
     ->increase($cash, 50000)        // Asset → debit
-    ->increase($revenue, 50000)     // Income → credit
+    ->increase($revenue, 50000)     // Revenue → credit
     ->commit();
 
 $journalEntry = TransactionBuilder::create()
@@ -328,8 +335,8 @@ $journalEntry = TransactionBuilder::create()
 
 | Account Type | `increase()` | `decrease()` |
 |-------------|-------------|-------------|
-| Asset, Expense (debit balance) | Debit | Credit |
-| Liability, Equity, Income (credit balance) | Credit | Debit |
+| Asset, Expense, Loss (debit balance) | Debit | Credit |
+| Liability, Equity, Revenue, Gain (credit balance) | Credit | Debit |
 
 ### Referencing Models
 
@@ -370,31 +377,34 @@ $pending = $builder->getPendingEntries();
 
 ### Standalone Account Methods
 
-For quick one-off entries (outside the TransactionBuilder), accounts have convenience methods:
+> **Deprecated:** These methods create ledger entries without a parent `JournalEntry`, which orphans them from the journal and breaks the audit trail. They also bypass the double-entry invariant. Use `TransactionBuilder` instead.
 
 ```php
-// Amount in cents
-$cash->debit(50000, 'Equipment purchase');
-$cash->credit(50000, 'Customer payment');
-
-// Amount in dollars
-$cash->debitDollars(500.00, 'Equipment purchase');
-$cash->creditDollars(500.00, 'Customer payment');
-
-// Auto-select debit/credit
-$cash->increase(50000, 'Cash received');
-$cash->decrease(20000, 'Cash paid');
-$cash->increaseDollars(500.00);
-$cash->decreaseDollars(200.00);
-
-// With a reference model
-$cash->debit(50000, 'Payment', now(), $invoice);
-
-// With a specific post date
-$cash->debit(50000, 'Backdated entry', Carbon::parse('2024-01-15'));
+// DEPRECATED — Use TransactionBuilder
+$cash->debit(50000);
+$cash->credit(50000);
+$cash->debitDollars(500.00);
+$cash->creditDollars(500.00);
+$cash->increase(50000);
+$cash->decrease(20000);
 ```
 
-> **Note:** Standalone methods create single-sided entries. Use `TransactionBuilder` for proper double-entry transactions.
+**Preferred alternative using TransactionBuilder:**
+
+```php
+// Record a payment received (debit cash, credit revenue)
+TransactionBuilder::create()
+    ->memo('Customer payment')
+    ->debit($cash, 50000)
+    ->credit($revenue, 50000)
+    ->commit();
+
+// Using increase/decrease (auto-selects correct side)
+TransactionBuilder::create()
+    ->increase($cash, 50000)    // Asset → debit
+    ->increase($revenue, 50000) // Revenue → credit
+    ->commit();
+```
 
 ---
 
@@ -790,8 +800,8 @@ The `account_id` foreign key on ledger entries uses `RESTRICT` on delete — an 
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `isDebitNormal()` | `bool` | True for debit balance types (ASSET, EXPENSE) |
-| `isCreditNormal()` | `bool` | True for credit balance types (LIABILITY, EQUITY, INCOME) |
+| `isDebitNormal()` | `bool` | True for debit balance types (ASSET, EXPENSE, LOSS) |
+| `isCreditNormal()` | `bool` | True for credit balance types (LIABILITY, EQUITY, REVENUE, GAIN) |
 | `balanceSign()` | `int` | `1` for debit balance, `-1` for credit balance |
 | `label()` | `string` | Human-readable label |
 | `values()` | `array` | All enum string values |
@@ -851,6 +861,105 @@ The test suite includes 119 tests across unit, functional, and complex use-case 
 - **Unit tests** — Account, JournalEntry, LedgerEntry models, enums, exceptions
 - **Functional tests** — TransactionBuilder, ChartOfAccountsSeeder, HasAccounting trait, all reports
 - **Complex use cases** — Full company lifecycle, reversals and voids, multi-currency, polymorphic ownership
+
+---
+
+## Migrating from a Journal-Based Accounting Model
+
+If you are transitioning from a journal-based accounting package (one that uses a `Journal → JournalTransaction` model where each Eloquent model owns a single journal), this section maps the old API to this package.
+
+### Conceptual Differences
+
+The old model gave each Eloquent model a single journal (a flat ledger with no type information). This package gives each model one or more typed **Accounts** that live in a shared chart of accounts. The key advantages:
+
+- Accounts have a **type** (Asset, Liability, Revenue, etc.) that determines their normal balance direction
+- Transactions are grouped in **JournalEntries** that enforce the double-entry invariant
+- All accounts live in one chart, enabling cross-entity financial reports
+
+### API Mapping
+
+| Old (journal-based) | New (this package) |
+|---------------------|-------------------|
+| `$model->initJournal()` | `$model->createAccount('Main', AccountType::ASSET)` |
+| `$model->journal->debit(100)` | `TransactionBuilder::create()->debit($account, 100)->credit($other, 100)->commit()` |
+| `$model->journal->credit(100)` | `TransactionBuilder::create()->credit($account, 100)->debit($other, 100)->commit()` |
+| `$model->journal->getCurrentBalance()` | `$account->getBalance()` |
+| `$model->journal->getCurrentBalanceInDollars()` | `$account->getBalanceInDollars()` |
+| `$model->journal->getBalanceOn($date)` | `$account->getBalanceOn($date)` |
+| `$model->journal->getDebitBalanceOn($date)` | `$account->getDebitBalanceOn($date)` |
+| `$model->journal->getCreditBalanceOn($date)` | `$account->getCreditBalanceOn($date)` |
+| `$model->journal->getDollarsDebitedToday()` | `$account->getDollarsDebitedToday()` |
+| `$model->journal->getDollarsCreditedToday()` | `$account->getDollarsCreditedToday()` |
+| `$model->journal->getDollarsDebitedOn($date)` | `$account->getDollarsDebitedOn($date)` |
+| `$model->journal->getDollarsCreditedOn($date)` | `$account->getDollarsCreditedOn($date)` |
+| `$transaction->referencesObject($model)` | Pass `$model` as 4th arg to `TransactionBuilder::debit()` / `credit()` |
+| `$transaction->getReferencedObject()` | `$ledgerEntry->getReferencedModel()` |
+
+### Database Table Mapping
+
+| Old Table | New Table | Notes |
+|-----------|-----------|-------|
+| `accounting_ledgers` | — | No equivalent. Account type is now on the Account record itself. |
+| `accounting_journals` | `accounting_accounts` | One account per model (or many, if needed) |
+| `accounting_journal_transactions` | `accounting_ledger_entries` | Individual debit/credit lines |
+| — | `accounting_journal_entries` | Groups a balanced set of ledger entries (new concept) |
+
+### Trait Migration
+
+**Old trait:**
+```php
+use Scottlaurent\Accounting\ModelTraits\AccountingJournal;
+
+class Order extends Model
+{
+    use AccountingJournal;
+}
+
+// Setup
+$order->initJournal('USD');
+
+// Access
+$order->journal->debit(5000, 'Payment received');
+$balance = $order->journal->getCurrentBalance();
+```
+
+**New trait:**
+```php
+use App\Accounting\Traits\HasAccounting;
+
+class Order extends Model
+{
+    use HasAccounting;
+}
+
+// Setup — create a typed account for the order
+$account = $order->createAccount(
+    name: 'Order Balance',
+    type: AccountType::ASSET,
+    currency: 'USD',
+);
+
+// Record a balanced transaction
+TransactionBuilder::create()
+    ->memo('Payment received')
+    ->debit($account, 5000)       // increase asset balance
+    ->credit($revenueAccount, 5000) // credit revenue
+    ->commit();
+
+// Query balance
+$balance = $account->getBalance();
+$dollars = $account->getBalanceInDollars();
+```
+
+### Data Migration
+
+If you have existing data in the old tables, you will need to:
+
+1. Create corresponding `accounting_accounts` rows for each old `accounting_journals` row, setting the correct `type`, `accountable_type`, and `accountable_id`
+2. Create `accounting_journal_entries` rows (one per transaction group, or one per old transaction)
+3. Migrate `accounting_journal_transactions` rows to `accounting_ledger_entries`, mapping `journal_id` → `account_id` and setting `journal_entry_id`
+
+Since the old model does not enforce double-entry (each transaction is one-sided), you will need to create offsetting entries to satisfy the double-entry invariant, or import existing entries as `is_posted = false` drafts until they can be reviewed.
 
 ---
 

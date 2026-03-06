@@ -84,7 +84,8 @@ class CashFlowStatement
             $contraType = $row->contra_type;
 
             match ($contraType) {
-                AccountType::INCOME->value, AccountType::EXPENSE->value => $operating[] = $detail,
+                AccountType::REVENUE->value, AccountType::EXPENSE->value,
+                AccountType::OTHER_INCOME->value, AccountType::OTHER_EXPENSE->value => $operating[] = $detail,
                 AccountType::ASSET->value => $investing[] = $detail,
                 AccountType::LIABILITY->value, AccountType::EQUITY->value => $financing[] = $detail,
                 // Unknown contra type: default to operating (safe fallback)

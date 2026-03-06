@@ -43,7 +43,7 @@ class ReportsTest extends TestCase
         $this->ar = Account::create(['name' => 'Accounts Receivable', 'code' => '1100', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::ACCOUNTS_RECEIVABLE]);
         $this->ap = Account::create(['name' => 'Accounts Payable', 'code' => '2000', 'type' => AccountType::LIABILITY, 'sub_type' => AccountSubType::ACCOUNTS_PAYABLE]);
         $this->equity = Account::create(['name' => "Owner's Equity", 'code' => '3000', 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::OWNERS_EQUITY]);
-        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE]);
+        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE]);
         $this->expense = Account::create(['name' => 'Rent', 'code' => '5000', 'type' => AccountType::EXPENSE, 'sub_type' => AccountSubType::OPERATING_EXPENSE]);
     }
 
@@ -138,11 +138,11 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-01-31'),
         );
 
-        $this->assertEquals(500000, $report['total_income']);
-        $this->assertEquals(200000, $report['total_expenses']);
+        $this->assertEquals(500000, $report['total_revenue']);
+        $this->assertEquals(200000, $report['total_operating_expenses']);
         $this->assertEquals(300000, $report['net_income']);
-        $this->assertCount(1, $report['income']);
-        $this->assertCount(1, $report['expenses']);
+        $this->assertCount(1, $report['revenue']);
+        $this->assertCount(1, $report['operating_expenses']);
     }
 
     #[Test]
@@ -168,7 +168,7 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-01-31'),
         );
 
-        $this->assertEquals(500000, $janReport['total_income']);
+        $this->assertEquals(500000, $janReport['total_revenue']);
 
         // Only February
         $febReport = IncomeStatement::generate(
@@ -176,7 +176,7 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-02-28'),
         );
 
-        $this->assertEquals(300000, $febReport['total_income']);
+        $this->assertEquals(300000, $febReport['total_revenue']);
     }
 
     // -------------------------------------------------------

@@ -265,8 +265,11 @@ class Account extends Model
     /**
      * Post a debit to this account. Amount in cents or Money object.
      *
-     * NOTE: This bypasses the double-entry invariant. Prefer TransactionBuilder
-     * for new code to maintain a balanced journal.
+     * WARNING: This creates a LedgerEntry without a parent JournalEntry, orphaning it
+     * from the journal and breaking the audit trail. It also bypasses the double-entry
+     * invariant — no offsetting credit is recorded.
+     *
+     * @deprecated Use TransactionBuilder::create()->debit($account, $amount)->credit($other, $amount)->commit() instead.
      */
     public function debit(int|Money $amount, ?string $memo = null, ?Carbon $postDate = null, ?Model $reference = null): LedgerEntry
     {
@@ -294,8 +297,11 @@ class Account extends Model
     /**
      * Post a credit to this account. Amount in cents or Money object.
      *
-     * NOTE: This bypasses the double-entry invariant. Prefer TransactionBuilder
-     * for new code to maintain a balanced journal.
+     * WARNING: This creates a LedgerEntry without a parent JournalEntry, orphaning it
+     * from the journal and breaking the audit trail. It also bypasses the double-entry
+     * invariant — no offsetting debit is recorded.
+     *
+     * @deprecated Use TransactionBuilder::create()->debit($account, $amount)->credit($other, $amount)->commit() instead.
      */
     public function credit(int|Money $amount, ?string $memo = null, ?Carbon $postDate = null, ?Model $reference = null): LedgerEntry
     {
@@ -320,11 +326,17 @@ class Account extends Model
         });
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->debitDollars($account, $dollars)->creditDollars($other, $dollars)->commit() instead.
+     */
     public function debitDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->debit((int) round($dollars * 100), $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->debitDollars($account, $dollars)->creditDollars($other, $dollars)->commit() instead.
+     */
     public function creditDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->credit((int) round($dollars * 100), $memo, $postDate);
@@ -337,6 +349,8 @@ class Account extends Model
     /**
      * Increase this account's balance. Automatically selects debit or credit
      * based on the account type's normal balance direction.
+     *
+     * @deprecated Use TransactionBuilder::create()->increase($account, $amount)->decrease($other, $amount)->commit() instead.
      */
     public function increase(int $amount, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
@@ -348,6 +362,8 @@ class Account extends Model
     /**
      * Decrease this account's balance. Automatically selects debit or credit
      * based on the account type's normal balance direction.
+     *
+     * @deprecated Use TransactionBuilder::create()->decrease($account, $amount)->increase($other, $amount)->commit() instead.
      */
     public function decrease(int $amount, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
@@ -356,11 +372,17 @@ class Account extends Model
             : $this->debit($amount, $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->increase($account, $amount)->decrease($other, $amount)->commit() instead.
+     */
     public function increaseDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->increase((int) round($dollars * 100), $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->decrease($account, $amount)->increase($other, $amount)->commit() instead.
+     */
     public function decreaseDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->decrease((int) round($dollars * 100), $memo, $postDate);
