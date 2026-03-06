@@ -11,17 +11,17 @@ use Tests\TestCase;
 class AccountTypeEnumTest extends TestCase
 {
     #[Test]
-    public function it_has_five_cases(): void
+    public function it_has_seven_cases(): void
     {
         $cases = AccountType::cases();
-        $this->assertCount(5, $cases);
+        $this->assertCount(7, $cases);
     }
 
     #[Test]
     public function it_returns_all_string_values(): void
     {
         $values = AccountType::values();
-        $this->assertEquals(['asset', 'liability', 'equity', 'income', 'expense'], $values);
+        $this->assertEquals(['asset', 'liability', 'equity', 'revenue', 'expense', 'other_income', 'other_expense'], $values);
     }
 
     #[Test]
@@ -41,6 +41,14 @@ class AccountTypeEnumTest extends TestCase
     }
 
     #[Test]
+    public function other_expense_is_debit_normal(): void
+    {
+        $this->assertTrue(AccountType::OTHER_EXPENSE->isDebitNormal());
+        $this->assertFalse(AccountType::OTHER_EXPENSE->isCreditNormal());
+        $this->assertEquals(1, AccountType::OTHER_EXPENSE->balanceSign());
+    }
+
+    #[Test]
     public function liability_is_credit_normal(): void
     {
         $this->assertFalse(AccountType::LIABILITY->isDebitNormal());
@@ -57,11 +65,19 @@ class AccountTypeEnumTest extends TestCase
     }
 
     #[Test]
-    public function income_is_credit_normal(): void
+    public function revenue_is_credit_normal(): void
     {
-        $this->assertFalse(AccountType::INCOME->isDebitNormal());
-        $this->assertTrue(AccountType::INCOME->isCreditNormal());
-        $this->assertEquals(-1, AccountType::INCOME->balanceSign());
+        $this->assertFalse(AccountType::REVENUE->isDebitNormal());
+        $this->assertTrue(AccountType::REVENUE->isCreditNormal());
+        $this->assertEquals(-1, AccountType::REVENUE->balanceSign());
+    }
+
+    #[Test]
+    public function other_income_is_credit_normal(): void
+    {
+        $this->assertFalse(AccountType::OTHER_INCOME->isDebitNormal());
+        $this->assertTrue(AccountType::OTHER_INCOME->isCreditNormal());
+        $this->assertEquals(-1, AccountType::OTHER_INCOME->balanceSign());
     }
 
     #[Test]
@@ -70,8 +86,10 @@ class AccountTypeEnumTest extends TestCase
         $this->assertEquals('Asset', AccountType::ASSET->label());
         $this->assertEquals('Liability', AccountType::LIABILITY->label());
         $this->assertEquals('Equity', AccountType::EQUITY->label());
-        $this->assertEquals('Income', AccountType::INCOME->label());
+        $this->assertEquals('Revenue', AccountType::REVENUE->label());
         $this->assertEquals('Expense', AccountType::EXPENSE->label());
+        $this->assertEquals('Other Income', AccountType::OTHER_INCOME->label());
+        $this->assertEquals('Other Expense', AccountType::OTHER_EXPENSE->label());
     }
 
     #[Test]
@@ -80,7 +98,9 @@ class AccountTypeEnumTest extends TestCase
         $this->assertEquals(AccountType::ASSET, AccountType::from('asset'));
         $this->assertEquals(AccountType::LIABILITY, AccountType::from('liability'));
         $this->assertEquals(AccountType::EQUITY, AccountType::from('equity'));
-        $this->assertEquals(AccountType::INCOME, AccountType::from('income'));
+        $this->assertEquals(AccountType::REVENUE, AccountType::from('revenue'));
         $this->assertEquals(AccountType::EXPENSE, AccountType::from('expense'));
+        $this->assertEquals(AccountType::OTHER_INCOME, AccountType::from('other_income'));
+        $this->assertEquals(AccountType::OTHER_EXPENSE, AccountType::from('other_expense'));
     }
 }

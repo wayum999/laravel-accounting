@@ -9,6 +9,7 @@ use App\Accounting\Enums\AccountType;
 use App\Accounting\Models\Account;
 use App\Accounting\Models\LedgerEntry;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class CashFlowStatement
 {
@@ -19,6 +20,9 @@ class CashFlowStatement
      * - Operating: income/expense accounts (day-to-day business)
      * - Investing: asset accounts (equipment purchases, etc.)
      * - Financing: liability/equity accounts (loans, owner investment)
+     *
+     * Contra-account type is resolved via a selective JOIN rather than eager-loading
+     * the full journalEntry.ledgerEntries.account graph.
      *
      * @param  Account|null  $cashAccount  Specific cash/bank account. If null, uses all bank-type assets.
      * @return array{operating: array, investing: array, financing: array, net_cash_flow: int, beginning_balance: int, ending_balance: int, period_start: string, period_end: string, currency: string}
@@ -32,39 +36,60 @@ class CashFlowStatement
             return self::emptyReport($from, $to, $currency);
         }
 
-        // Get all posted ledger entries hitting cash accounts in the period
-        $cashEntries = LedgerEntry::whereIn('account_id', $cashAccountIds)
-            ->where('is_posted', true)
-            ->whereBetween('post_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
-            ->with('journalEntry.ledgerEntries.account')
+        $startOfDay = $from->copy()->startOfDay();
+        $endOfDay = $to->copy()->endOfDay();
+
+        // Fetch cash entries with a single representative contra-account type resolved via a
+        // correlated subquery. Using a JOIN instead produces N rows per cash entry when the
+        // journal has N contra lines (e.g. cash DR / rev1 CR / rev2 CR → two rows, both
+        // carrying the full cash_effect, doubling the total). The correlated subquery picks
+        // exactly one contra per cash entry, avoiding the duplication.
+        $cashEntries = DB::table('accounting_ledger_entries as cash_entry')
+            ->whereIn('cash_entry.account_id', $cashAccountIds)
+            ->where('cash_entry.is_posted', true)
+            ->whereBetween('cash_entry.post_date', [$startOfDay, $endOfDay])
+            ->select(
+                'cash_entry.journal_entry_id',
+                'cash_entry.memo',
+                'cash_entry.post_date',
+                DB::raw('cash_entry.debit - cash_entry.credit as cash_effect'),
+                DB::raw('(SELECT a.type
+                          FROM accounting_ledger_entries le
+                          JOIN accounting_accounts a ON a.id = le.account_id
+                          WHERE le.journal_entry_id = cash_entry.journal_entry_id
+                            AND le.id != cash_entry.id
+                          ORDER BY le.id
+                          LIMIT 1) as contra_type'),
+            )
             ->get();
 
         $operating = [];
         $investing = [];
         $financing = [];
 
-        foreach ($cashEntries as $cashEntry) {
-            // Net cash effect: debit = cash in, credit = cash out
-            $cashEffect = $cashEntry->debit - $cashEntry->credit;
+        foreach ($cashEntries as $row) {
+            $cashEffect = (int) $row->cash_effect;
 
             if ($cashEffect === 0) {
                 continue;
             }
 
-            // Find the contra-account(s) in the same journal entry
-            $contraType = self::determineContraType($cashEntry);
-
             $detail = [
-                'journal_entry_id' => $cashEntry->journal_entry_id,
-                'memo' => $cashEntry->memo,
+                'journal_entry_id' => $row->journal_entry_id,
+                'memo' => $row->memo,
                 'amount' => $cashEffect,
-                'date' => $cashEntry->post_date?->toDateString(),
+                'date' => $row->post_date ? Carbon::parse($row->post_date)->toDateString() : null,
             ];
 
+            $contraType = $row->contra_type;
+
             match ($contraType) {
-                'operating' => $operating[] = $detail,
-                'investing' => $investing[] = $detail,
-                'financing' => $financing[] = $detail,
+                AccountType::REVENUE->value, AccountType::EXPENSE->value,
+                AccountType::OTHER_INCOME->value, AccountType::OTHER_EXPENSE->value => $operating[] = $detail,
+                AccountType::ASSET->value => $investing[] = $detail,
+                AccountType::LIABILITY->value, AccountType::EQUITY->value => $financing[] = $detail,
+                // Unknown contra type: default to operating (safe fallback)
+                default => $operating[] = $detail,
             };
         }
 
@@ -110,53 +135,21 @@ class CashFlowStatement
     }
 
     /**
-     * Determine the cash flow category based on the contra-account type.
-     */
-    private static function determineContraType(LedgerEntry $cashEntry): string
-    {
-        if (!$cashEntry->journalEntry) {
-            return 'operating';
-        }
-
-        // Find contra-entries (entries in the same journal entry that aren't this cash entry)
-        $contraEntries = $cashEntry->journalEntry->ledgerEntries
-            ->where('id', '!=', $cashEntry->id);
-
-        if ($contraEntries->isEmpty()) {
-            return 'operating';
-        }
-
-        // Use the type of the first contra-account to categorize
-        $contraAccount = $contraEntries->first()->account;
-
-        if (!$contraAccount) {
-            return 'operating';
-        }
-
-        return match ($contraAccount->type) {
-            AccountType::INCOME, AccountType::EXPENSE => 'operating',
-            AccountType::ASSET => 'investing',
-            AccountType::LIABILITY, AccountType::EQUITY => 'financing',
-        };
-    }
-
-    /**
      * Calculate total cash balance across given account IDs as of a date.
      */
     private static function getCashBalance(array $accountIds, Carbon $asOf): int
     {
-        $debits = (int) LedgerEntry::whereIn('account_id', $accountIds)
+        $row = DB::table('accounting_ledger_entries')
+            ->whereIn('account_id', $accountIds)
             ->where('is_posted', true)
             ->where('post_date', '<=', $asOf->copy()->endOfDay())
-            ->sum('debit');
-
-        $credits = (int) LedgerEntry::whereIn('account_id', $accountIds)
-            ->where('is_posted', true)
-            ->where('post_date', '<=', $asOf->copy()->endOfDay())
-            ->sum('credit');
+            ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->first();
 
         // Cash is an asset (debit-normal)
-        return $debits - $credits;
+        return $row
+            ? (int) $row->total_debit - (int) $row->total_credit
+            : 0;
     }
 
     private static function emptyReport(Carbon $from, Carbon $to, string $currency): array

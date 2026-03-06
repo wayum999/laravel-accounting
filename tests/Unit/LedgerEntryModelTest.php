@@ -65,13 +65,13 @@ class LedgerEntryModelTest extends TestCase
             'credit' => 0,
             'currency' => 'USD',
             'post_date' => now(),
-            'ledgerable_type' => get_class($referencedModel),
+            'ledgerable_type' => $referencedModel->getMorphClass(),
             'ledgerable_id' => $referencedModel->id,
         ]);
 
         $entry->refresh();
 
-        $this->assertEquals(get_class($referencedModel), $entry->ledgerable_type);
+        $this->assertEquals($referencedModel->getMorphClass(), $entry->ledgerable_type);
         $this->assertEquals($referencedModel->id, $entry->ledgerable_id);
 
         $resolved = $entry->getReferencedModel();
@@ -97,15 +97,14 @@ class LedgerEntryModelTest extends TestCase
     #[Test]
     public function creating_entry_recalculates_account_balance(): void
     {
+        // Entries created via Account::debit()/credit() trigger recalculation.
+        // Direct ledgerEntries()->create() does NOT (running_balance and cached_balance
+        // are managed by resequenceRunningBalances() / recalculateBalance() which are
+        // called from Account::debit(), Account::credit(), and TransactionBuilder).
         $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
         $this->assertEquals(0, $account->cached_balance);
 
-        $account->ledgerEntries()->create([
-            'debit' => 5000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $account->debit(5000, 'Deposit');
 
         $account->refresh();
         $this->assertEquals(5000, $account->cached_balance);
@@ -149,48 +148,32 @@ class LedgerEntryModelTest extends TestCase
     {
         $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
 
-        // Debit-normal: running_balance = debit - credit
-        $entry1 = $account->ledgerEntries()->create([
-            'debit' => 5000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
-
+        // Debit-normal: running_balance = cumulative (debit - credit).
+        // running_balance is 0 at creation and set by resequenceRunningBalances(),
+        // which Account::debit()/credit() call automatically.
+        $entry1 = $account->debit(5000);
+        $entry1->refresh();
         $this->assertEquals(5000, $entry1->running_balance);
 
-        $entry2 = $account->ledgerEntries()->create([
-            'debit' => 0,
-            'credit' => 2000,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
-
+        $entry2 = $account->credit(2000);
+        $entry2->refresh();
         $this->assertEquals(3000, $entry2->running_balance);
     }
 
     #[Test]
     public function it_computes_running_balance_on_creation_credit_normal(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
-        // Credit-normal: running_balance = credit - debit
-        $entry1 = $account->ledgerEntries()->create([
-            'debit' => 0,
-            'credit' => 8000,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
-
+        // Credit-normal: running_balance = cumulative (credit - debit).
+        // running_balance is 0 at creation and set by resequenceRunningBalances(),
+        // which Account::debit()/credit() call automatically.
+        $entry1 = $account->credit(8000);
+        $entry1->refresh();
         $this->assertEquals(8000, $entry1->running_balance);
 
-        $entry2 = $account->ledgerEntries()->create([
-            'debit' => 3000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
-
+        $entry2 = $account->debit(3000);
+        $entry2->refresh();
         $this->assertEquals(5000, $entry2->running_balance);
     }
 
@@ -199,28 +182,16 @@ class LedgerEntryModelTest extends TestCase
     {
         $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
 
-        $entry1 = $account->ledgerEntries()->create([
-            'debit' => 10000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $entry1 = $account->debit(10000);
+        $entry1->refresh();
         $this->assertEquals(10000, $entry1->running_balance);
 
-        $entry2 = $account->ledgerEntries()->create([
-            'debit' => 5000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $entry2 = $account->debit(5000);
+        $entry2->refresh();
         $this->assertEquals(15000, $entry2->running_balance);
 
-        $entry3 = $account->ledgerEntries()->create([
-            'debit' => 0,
-            'credit' => 3000,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $entry3 = $account->credit(3000);
+        $entry3->refresh();
         $this->assertEquals(12000, $entry3->running_balance);
     }
 
@@ -229,14 +200,11 @@ class LedgerEntryModelTest extends TestCase
     {
         $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
 
-        $posted = $account->ledgerEntries()->create([
-            'debit' => 5000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $posted = $account->debit(5000, 'First deposit');
+        $posted->refresh();
         $this->assertEquals(5000, $posted->running_balance);
 
+        // Draft entry: created directly with is_posted=false; running_balance stays 0
         $draft = $account->ledgerEntries()->create([
             'debit' => 3000,
             'credit' => 0,
@@ -247,12 +215,8 @@ class LedgerEntryModelTest extends TestCase
         $this->assertEquals(0, $draft->running_balance);
 
         // Next posted entry should chain from the first posted entry, not the draft
-        $posted2 = $account->ledgerEntries()->create([
-            'debit' => 2000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $posted2 = $account->debit(2000, 'Second deposit');
+        $posted2->refresh();
         $this->assertEquals(7000, $posted2->running_balance);
     }
 
@@ -261,12 +225,7 @@ class LedgerEntryModelTest extends TestCase
     {
         $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
 
-        $account->ledgerEntries()->create([
-            'debit' => 5000,
-            'credit' => 0,
-            'currency' => 'USD',
-            'post_date' => now(),
-        ]);
+        $account->debit(5000, 'Initial deposit');
 
         $account->refresh();
         $this->assertEquals(5000, $account->cached_balance);

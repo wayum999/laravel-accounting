@@ -9,6 +9,36 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * An immutable record of a single debit or credit against an Account.
+ *
+ * Entries are created via TransactionBuilder (preferred) or directly through
+ * Account::debit()/credit() for simple one-sided entries.
+ *
+ * Immutability: once created, only `is_posted` may be changed (via
+ * JournalEntry::post()/unpost()), and `running_balance` is managed internally
+ * by Account::resequenceRunningBalances(). All other field changes throw
+ * ImmutableEntryException.
+ *
+ * running_balance is set to 0 on creation and recomputed in a sequential,
+ * lock-protected pass by Account::resequenceRunningBalances() after each batch
+ * of posts or unpostings. This eliminates the TOCTOU race condition that occurs
+ * when concurrent inserts query the last balance without a row lock.
+ *
+ * @property int         $id
+ * @property string      $journal_entry_id
+ * @property int         $account_id
+ * @property int         $debit
+ * @property int         $credit
+ * @property int         $running_balance
+ * @property bool        $is_posted
+ * @property string      $currency
+ * @property string|null $memo
+ * @property \Carbon\Carbon|null $post_date
+ * @property array|null  $tags
+ * @property string|null $ledgerable_type
+ * @property int|null    $ledgerable_id
+ */
 class LedgerEntry extends Model
 {
     protected $table = 'accounting_ledger_entries';
@@ -51,37 +81,20 @@ class LedgerEntry extends Model
                 $entry->is_posted = true;
             }
 
-            // Only compute running_balance for posted entries
-            if ($entry->is_posted) {
-                $lastEntry = self::where('account_id', $entry->account_id)
-                    ->where('is_posted', true)
-                    ->latest('id')
-                    ->first();
-
-                $lastBalance = $lastEntry?->running_balance ?? 0;
-
-                $account = Account::find($entry->account_id);
-
-                if ($account && $account->isDebitNormal()) {
-                    $entry->running_balance = $lastBalance + $entry->debit - $entry->credit;
-                } else {
-                    $entry->running_balance = $lastBalance + $entry->credit - $entry->debit;
-                }
-            } else {
-                $entry->running_balance = 0;
-            }
-        });
-
-        static::created(function (LedgerEntry $entry) {
-            // Only recalculate balance for posted entries
-            if ($entry->is_posted) {
-                $entry->account?->recalculateBalance();
-            }
+            // running_balance is always initialised to 0 on creation.
+            // The correct sequential running balance is computed after the
+            // full batch of entries is created, via Account::resequenceRunningBalances().
+            // Computing it here would introduce a TOCTOU race condition under concurrent
+            // inserts for the same account.
+            $entry->running_balance = 0;
         });
 
         static::updating(function (LedgerEntry $entry) {
             $dirty = $entry->getDirty();
-            $allowedFields = ['is_posted', 'running_balance'];
+            // Only is_posted is allowed to be changed via Eloquent events.
+            // running_balance is updated via direct DB queries in resequenceRunningBalances()
+            // to bypass this guard, as it must always be set as part of a controlled batch.
+            $allowedFields = ['is_posted'];
             $disallowedChanges = array_diff(array_keys($dirty), $allowedFields);
 
             if (!empty($disallowedChanges)) {
@@ -119,17 +132,6 @@ class LedgerEntry extends Model
     // -------------------------------------------------------
     // Reference helpers
     // -------------------------------------------------------
-
-    /**
-     * @deprecated Pass ledgerable_type/ledgerable_id at creation time instead.
-     *             Ledger entries are immutable after creation.
-     *
-     * @throws ImmutableEntryException
-     */
-    public function referencesModel(Model $model): never
-    {
-        throw new ImmutableEntryException('update');
-    }
 
     /**
      * Resolve the referenced model, or null if none set.

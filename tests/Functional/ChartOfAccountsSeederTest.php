@@ -109,7 +109,7 @@ class ChartOfAccountsSeederTest extends TestCase
         $this->assertEquals(AccountType::EQUITY, $equity->type);
 
         $revenue = Account::where('code', '4000')->first();
-        $this->assertEquals(AccountType::INCOME, $revenue->type);
+        $this->assertEquals(AccountType::REVENUE, $revenue->type);
 
         $expense = Account::where('code', '5000')->first();
         $this->assertEquals(AccountType::EXPENSE, $expense->type);

@@ -184,8 +184,8 @@ class CompanyLifecycleTest extends TestCase
             Carbon::parse('2025-01-01'),
             Carbon::parse('2025-01-31'),
         );
-        $this->assertEquals(1200000, $pl['total_income']);
-        $this->assertEquals(300000, $pl['total_expenses']);
+        $this->assertEquals(1200000, $pl['total_revenue']);
+        $this->assertEquals(300000, $pl['total_operating_expenses']);
         $this->assertEquals(900000, $pl['net_income']);
 
         // Balance Sheet
@@ -201,7 +201,7 @@ class CompanyLifecycleTest extends TestCase
     public function void_and_reverse_maintain_accounting_equation(): void
     {
         $cash = Account::create(['name' => 'Cash', 'code' => '1000', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::BANK]);
-        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE]);
         $expense = Account::create(['name' => 'Expense', 'code' => '5000', 'type' => AccountType::EXPENSE]);
 
         // Create a transaction
@@ -244,8 +244,8 @@ class CompanyLifecycleTest extends TestCase
     {
         $cashUsd = Account::create(['name' => 'Cash USD', 'code' => '1000', 'type' => AccountType::ASSET, 'currency' => 'USD', 'sub_type' => AccountSubType::BANK]);
         $cashEur = Account::create(['name' => 'Cash EUR', 'code' => '1001', 'type' => AccountType::ASSET, 'currency' => 'EUR', 'sub_type' => AccountSubType::BANK]);
-        $revenueUsd = Account::create(['name' => 'Revenue USD', 'code' => '4000', 'type' => AccountType::INCOME, 'currency' => 'USD']);
-        $revenueEur = Account::create(['name' => 'Revenue EUR', 'code' => '4001', 'type' => AccountType::INCOME, 'currency' => 'EUR']);
+        $revenueUsd = Account::create(['name' => 'Revenue USD', 'code' => '4000', 'type' => AccountType::REVENUE, 'currency' => 'USD']);
+        $revenueEur = Account::create(['name' => 'Revenue EUR', 'code' => '4001', 'type' => AccountType::REVENUE, 'currency' => 'EUR']);
 
         TransactionBuilder::create()
             ->debit($cashUsd, 500000)
@@ -285,7 +285,7 @@ class CompanyLifecycleTest extends TestCase
         ]);
 
         $cash = Account::create(['name' => 'Cash', 'code' => '1000', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::BANK]);
-        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE]);
 
         // Invoice the customer: DR AR, CR Revenue
         $invoice = TransactionBuilder::create()
@@ -318,7 +318,7 @@ class CompanyLifecycleTest extends TestCase
     public function ledger_entries_reference_related_models(): void
     {
         $cash = Account::create(['name' => 'Cash', 'code' => '1000', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::BANK]);
-        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE]);
 
         // Use an Account model as a stand-in for "Invoice #101"
         $invoiceRef = Account::create(['name' => 'Invoice Reference', 'type' => AccountType::ASSET]);
@@ -330,9 +330,9 @@ class CompanyLifecycleTest extends TestCase
             ->credit($revenue, 500000, 'Revenue from invoice', $invoiceRef)
             ->commit();
 
-        // Both entries should reference the invoice
+        // Both entries should reference the invoice (stored as the morph alias)
         foreach ($je->ledgerEntries as $entry) {
-            $this->assertEquals(get_class($invoiceRef), $entry->ledgerable_type);
+            $this->assertEquals($invoiceRef->getMorphClass(), $entry->ledgerable_type);
             $this->assertEquals($invoiceRef->id, $entry->ledgerable_id);
 
             $resolved = $entry->getReferencedModel();

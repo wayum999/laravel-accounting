@@ -31,7 +31,7 @@ class JournalEntryModelTest extends TestCase
     public function it_calculates_total_debits_and_credits(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -84,7 +84,7 @@ class JournalEntryModelTest extends TestCase
     public function it_reverses_a_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -194,7 +194,7 @@ class JournalEntryModelTest extends TestCase
     public function it_can_post_an_unposted_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -245,7 +245,7 @@ class JournalEntryModelTest extends TestCase
     public function it_can_unpost_a_posted_journal_entry(): void
     {
         $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
-        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $je = JournalEntry::create([
             'date' => '2025-01-15',
@@ -317,5 +317,158 @@ class JournalEntryModelTest extends TestCase
         $result = $je->unpost();
         $this->assertSame($je, $result);
         $this->assertFalse($je->is_posted);
+    }
+
+    // -------------------------------------------------------
+    // Exception path tests (H20)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function reverse_throws_logic_exception_on_unposted_entry(): void
+    {
+        $je = JournalEntry::create([
+            'date' => '2025-01-15',
+            'memo' => 'Draft',
+            'is_posted' => false,
+        ]);
+
+        $this->expectException(\LogicException::class);
+        $je->reverse();
+    }
+
+    #[Test]
+    public function void_throws_logic_exception_on_unposted_entry(): void
+    {
+        $je = JournalEntry::create([
+            'date' => '2025-01-15',
+            'memo' => 'Draft',
+            'is_posted' => false,
+        ]);
+
+        $this->expectException(\LogicException::class);
+        $je->void();
+    }
+
+    // -------------------------------------------------------
+    // Running balance chain tests (M22, M23, M24)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function running_balances_chain_across_sequential_posts(): void
+    {
+        $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+
+        // First transaction: debit 5000
+        $je1 = JournalEntry::create(['date' => '2025-01-15', 'is_posted' => false]);
+        $je1->ledgerEntries()->create([
+            'account_id' => $cash->id,
+            'debit' => 5000,
+            'credit' => 0,
+            'currency' => 'USD',
+            'post_date' => '2025-01-15',
+            'is_posted' => false,
+        ]);
+        $je1->post();
+
+        // Second transaction: debit 3000
+        $je2 = JournalEntry::create(['date' => '2025-01-16', 'is_posted' => false]);
+        $je2->ledgerEntries()->create([
+            'account_id' => $cash->id,
+            'debit' => 3000,
+            'credit' => 0,
+            'currency' => 'USD',
+            'post_date' => '2025-01-16',
+            'is_posted' => false,
+        ]);
+        $je2->post();
+
+        $entries = \App\Accounting\Models\LedgerEntry::where('account_id', $cash->id)
+            ->where('is_posted', true)
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $entries);
+        $this->assertEquals(5000, $entries[0]->running_balance);
+        $this->assertEquals(8000, $entries[1]->running_balance);
+
+        $cash->refresh();
+        $this->assertEquals(8000, $cash->cached_balance);
+    }
+
+    #[Test]
+    public function unposting_first_transaction_resequences_second_transactions_running_balance(): void
+    {
+        $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+
+        // Post transaction 1 (debit 5000)
+        $je1 = JournalEntry::create(['date' => '2025-01-15', 'is_posted' => false]);
+        $entry1 = $je1->ledgerEntries()->create([
+            'account_id' => $cash->id,
+            'debit' => 5000,
+            'credit' => 0,
+            'currency' => 'USD',
+            'post_date' => '2025-01-15',
+            'is_posted' => false,
+        ]);
+        $je1->post();
+
+        // Post transaction 2 (debit 3000 — running balance should be 8000)
+        $je2 = JournalEntry::create(['date' => '2025-01-16', 'is_posted' => false]);
+        $entry2 = $je2->ledgerEntries()->create([
+            'account_id' => $cash->id,
+            'debit' => 3000,
+            'credit' => 0,
+            'currency' => 'USD',
+            'post_date' => '2025-01-16',
+            'is_posted' => false,
+        ]);
+        $je2->post();
+
+        // Unpost transaction 1 — transaction 2's running_balance must be resequenced to 3000
+        $je1->unpost();
+
+        $entry2->refresh();
+        $this->assertEquals(3000, $entry2->running_balance);
+
+        $cash->refresh();
+        $this->assertEquals(3000, $cash->cached_balance);
+    }
+
+    #[Test]
+    public function reversal_entry_running_balances_are_set_correctly(): void
+    {
+        $cash = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $revenue = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
+
+        // Post original transaction: DR Cash 5000 / CR Revenue 5000
+        $je = JournalEntry::create(['date' => '2025-01-15']);
+        $je->ledgerEntries()->create([
+            'account_id' => $cash->id,
+            'debit' => 5000,
+            'credit' => 0,
+            'currency' => 'USD',
+            'post_date' => '2025-01-15',
+        ]);
+        $je->ledgerEntries()->create([
+            'account_id' => $revenue->id,
+            'debit' => 0,
+            'credit' => 5000,
+            'currency' => 'USD',
+            'post_date' => '2025-01-15',
+        ]);
+
+        $reversal = $je->reverse('Reversal test');
+
+        // After reversal, net cash balance should be 0
+        $cash->refresh();
+        $revenue->refresh();
+        $this->assertEquals(0, (int) $cash->getBalance()->getAmount());
+        $this->assertEquals(0, (int) $revenue->getBalance()->getAmount());
+
+        // Running balances on reversal entries should be 0 (net zero)
+        $reversalCashEntry = $reversal->ledgerEntries()
+            ->where('account_id', $cash->id)
+            ->first();
+        $this->assertEquals(0, $reversalCashEntry->running_balance);
     }
 }
