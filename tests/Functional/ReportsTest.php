@@ -27,6 +27,14 @@ class ReportsTest extends TestCase
     private Account $revenue;
     private Account $expense;
 
+    protected function tearDown(): void
+    {
+        // Reset any frozen time so Carbon mock leaks don't affect subsequent tests
+        // when an assertion fails before the inline Carbon::setTestNow() cleanup call.
+        Carbon::setTestNow(null);
+        parent::tearDown();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -35,7 +43,7 @@ class ReportsTest extends TestCase
         $this->ar = Account::create(['name' => 'Accounts Receivable', 'code' => '1100', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::ACCOUNTS_RECEIVABLE]);
         $this->ap = Account::create(['name' => 'Accounts Payable', 'code' => '2000', 'type' => AccountType::LIABILITY, 'sub_type' => AccountSubType::ACCOUNTS_PAYABLE]);
         $this->equity = Account::create(['name' => "Owner's Equity", 'code' => '3000', 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::OWNERS_EQUITY]);
-        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE]);
+        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE]);
         $this->expense = Account::create(['name' => 'Rent', 'code' => '5000', 'type' => AccountType::EXPENSE, 'sub_type' => AccountSubType::OPERATING_EXPENSE]);
     }
 
@@ -130,11 +138,11 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-01-31'),
         );
 
-        $this->assertEquals(500000, $report['total_income']);
-        $this->assertEquals(200000, $report['total_expenses']);
+        $this->assertEquals(500000, $report['total_revenue']);
+        $this->assertEquals(200000, $report['total_operating_expenses']);
         $this->assertEquals(300000, $report['net_income']);
-        $this->assertCount(1, $report['income']);
-        $this->assertCount(1, $report['expenses']);
+        $this->assertCount(1, $report['revenue']);
+        $this->assertCount(1, $report['operating_expenses']);
     }
 
     #[Test]
@@ -160,7 +168,7 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-01-31'),
         );
 
-        $this->assertEquals(500000, $janReport['total_income']);
+        $this->assertEquals(500000, $janReport['total_revenue']);
 
         // Only February
         $febReport = IncomeStatement::generate(
@@ -168,7 +176,7 @@ class ReportsTest extends TestCase
             Carbon::parse('2025-02-28'),
         );
 
-        $this->assertEquals(300000, $febReport['total_income']);
+        $this->assertEquals(300000, $febReport['total_revenue']);
     }
 
     // -------------------------------------------------------
@@ -322,5 +330,55 @@ class ReportsTest extends TestCase
         $this->assertCount(3, $report['summary']);
 
         Carbon::setTestNow();
+    }
+
+    #[Test]
+    public function aging_report_excludes_future_dated_entries(): void
+    {
+        // $asOf is yesterday; entries posted today are future-dated relative to it
+        $asOf = Carbon::parse('2025-02-28');
+        $futureDate = Carbon::parse('2025-03-05');
+
+        $this->ar->debit(100000, 'Past invoice', Carbon::parse('2025-02-01'));
+        $this->ar->debit(50000, 'Future invoice', $futureDate);
+
+        $report = AgingReport::generate(AccountType::ASSET, $asOf);
+
+        // Future-dated invoice should NOT be included
+        $this->assertEquals(100000, $report['total_outstanding']);
+    }
+
+    #[Test]
+    public function aging_report_returns_empty_for_equity_account_type(): void
+    {
+        // Equity accounts have no sub_type filter; empty result expected with no entries
+        $report = AgingReport::generate(AccountType::EQUITY);
+
+        $this->assertEquals(0, $report['total_outstanding']);
+        $this->assertEmpty($report['details']);
+    }
+
+    // -------------------------------------------------------
+    // BalanceSheet period start parameter (H21)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function balance_sheet_uses_custom_period_start_for_net_income(): void
+    {
+        // Revenue in Q1
+        $this->revenue->credit(10000, 'Q1 sale', Carbon::parse('2025-03-01'));
+
+        // With default period start (Jan 1 2025), net income includes Q1 revenue
+        $defaultReport = BalanceSheet::generate(Carbon::parse('2025-06-30'));
+        $this->assertGreaterThan(0, $defaultReport['total_equity']);
+
+        // With period start of July 1 2025, Q1 revenue is excluded from net income
+        $customReport = BalanceSheet::generate(
+            Carbon::parse('2025-12-31'),
+            'USD',
+            Carbon::parse('2025-07-01'),
+        );
+        // No revenue posted between Jul-Dec, so net income should be 0
+        $this->assertEquals(0, $customReport['total_equity']);
     }
 }

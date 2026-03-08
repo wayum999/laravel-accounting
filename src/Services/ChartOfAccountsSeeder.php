@@ -84,7 +84,7 @@ class ChartOfAccountsSeeder
             ['code' => '2000', 'name' => 'Accounts Payable', 'type' => AccountType::LIABILITY, 'sub_type' => AccountSubType::ACCOUNTS_PAYABLE, 'description' => 'Money owed to vendors'],
             ['code' => '3000', 'name' => "Owner's Equity", 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::OWNERS_EQUITY, 'description' => 'Owner investment in the business'],
             ['code' => '3100', 'name' => 'Retained Earnings', 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::RETAINED_EARNINGS, 'description' => 'Accumulated profits retained in the business'],
-            ['code' => '4000', 'name' => 'Sales Revenue', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE, 'description' => 'Income from sales'],
+            ['code' => '4000', 'name' => 'Sales Revenue', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE, 'description' => 'Income from sales'],
             ['code' => '5000', 'name' => 'General Expenses', 'type' => AccountType::EXPENSE, 'sub_type' => AccountSubType::OPERATING_EXPENSE, 'description' => 'General business expenses'],
         ];
     }
@@ -119,10 +119,10 @@ class ChartOfAccountsSeeder
             ['code' => '3200', 'name' => "Owner's Draw", 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::OWNERS_EQUITY],
 
             // Income
-            ['code' => '4000', 'name' => 'Service Revenue', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4100', 'name' => 'Consulting Revenue', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4200', 'name' => 'Project Revenue', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4900', 'name' => 'Other Income', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::OTHER_INCOME],
+            ['code' => '4000', 'name' => 'Service Revenue', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE],
+            ['code' => '4100', 'name' => 'Consulting Revenue', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE],
+            ['code' => '4200', 'name' => 'Project Revenue', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE],
+            ['code' => '4900', 'name' => 'Other Income', 'type' => AccountType::OTHER_INCOME, 'sub_type' => AccountSubType::OTHER_INCOME],
 
             // Expenses
             ['code' => '5000', 'name' => 'Salaries & Wages', 'type' => AccountType::EXPENSE, 'sub_type' => AccountSubType::OPERATING_EXPENSE],
@@ -175,11 +175,11 @@ class ChartOfAccountsSeeder
             ['code' => '3200', 'name' => "Owner's Draw", 'type' => AccountType::EQUITY, 'sub_type' => AccountSubType::OWNERS_EQUITY],
 
             // Income
-            ['code' => '4000', 'name' => 'Sales Revenue', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4100', 'name' => 'Returns & Allowances', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4200', 'name' => 'Discounts Given', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4300', 'name' => 'Shipping & Delivery Income', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::REVENUE],
-            ['code' => '4900', 'name' => 'Other Income', 'type' => AccountType::INCOME, 'sub_type' => AccountSubType::OTHER_INCOME],
+            ['code' => '4000', 'name' => 'Sales Revenue', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE],
+            ['code' => '4100', 'name' => 'Returns & Allowances', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::SALES_RETURNS_ALLOWANCES],
+            ['code' => '4200', 'name' => 'Discounts Given', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::SALES_DISCOUNTS],
+            ['code' => '4300', 'name' => 'Shipping & Delivery Income', 'type' => AccountType::REVENUE, 'sub_type' => AccountSubType::REVENUE],
+            ['code' => '4900', 'name' => 'Other Income', 'type' => AccountType::OTHER_INCOME, 'sub_type' => AccountSubType::OTHER_INCOME],
 
             // Cost of Goods Sold
             ['code' => '5000', 'name' => 'Cost of Goods Sold', 'type' => AccountType::EXPENSE, 'sub_type' => AccountSubType::COST_OF_GOODS_SOLD],

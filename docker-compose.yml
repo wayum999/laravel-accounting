@@ -1,3 +1,6 @@
+# Development-only compose file. Do NOT use in production.
+# Copy .env.example to .env and fill in secrets before starting:
+#   cp .env.example .env && php artisan key:generate
 services:
   app:
     build:
@@ -8,15 +11,15 @@ services:
     volumes:
       - ".:/var/www"
     environment:
-      - APP_ENV=local
-      - APP_DEBUG=true
-      - APP_KEY=
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_KEY=${APP_KEY}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_DATABASE=accounting
-      - DB_USERNAME=sail
-      - DB_PASSWORD=password
+      - DB_DATABASE=${DB_DATABASE:-accounting}
+      - DB_USERNAME=${DB_USERNAME:-sail}
+      - DB_PASSWORD=${DB_PASSWORD}
     ports:
       - "8000:8000"
     networks:
@@ -31,9 +34,9 @@ services:
     image: postgres:18
     container_name: accounting-postgres
     environment:
-      POSTGRES_DB: accounting
-      POSTGRES_USER: sail
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_DATABASE:-accounting}
+      POSTGRES_USER: ${DB_USERNAME:-sail}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -41,7 +44,7 @@ services:
     networks:
       - accounting-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sail -d accounting"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sail} -d ${DB_DATABASE:-accounting}"]
       timeout: 5s
       retries: 10
 

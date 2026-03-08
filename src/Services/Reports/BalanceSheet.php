@@ -8,6 +8,7 @@ use App\Accounting\Enums\AccountSubType;
 use App\Accounting\Enums\AccountType;
 use App\Accounting\Models\Account;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class BalanceSheet
 {
@@ -16,11 +17,16 @@ class BalanceSheet
      *
      * Validates the accounting equation: Assets = Liabilities + Equity
      *
+     * @param  Carbon|null  $periodStart  Start of the income period for net income calculation.
+     *                                    Defaults to January 1 of $asOf->year. Override for
+     *                                    non-calendar fiscal years.
+     *
      * @return array{assets: array, liabilities: array, equity: array, grouped_assets: array, grouped_liabilities: array, grouped_equity: array, total_assets: int, total_liabilities: int, total_equity: int, is_balanced: bool, as_of: string, currency: string}
      */
-    public static function generate(?Carbon $asOf = null, string $currency = 'USD'): array
+    public static function generate(?Carbon $asOf = null, string $currency = 'USD', ?Carbon $periodStart = null): array
     {
         $asOf = $asOf ?? Carbon::now();
+        $periodStart = $periodStart ?? Carbon::create($asOf->year, 1, 1);
 
         $assets = self::getAccountBalances(AccountType::ASSET, $asOf, $currency);
         $liabilities = self::getAccountBalances(AccountType::LIABILITY, $asOf, $currency);
@@ -28,7 +34,7 @@ class BalanceSheet
 
         // Net income (income - expenses) is part of equity on the balance sheet
         $incomeStatement = IncomeStatement::generate(
-            Carbon::create($asOf->year, 1, 1),
+            $periodStart,
             $asOf,
             $currency,
         );
@@ -72,6 +78,9 @@ class BalanceSheet
 
     /**
      * Get all account balances for a given type as of a date.
+     *
+     * Uses a single GROUP BY query to fetch all debit/credit sums in one round-trip,
+     * eliminating the N+1 pattern of two queries per account.
      */
     private static function getAccountBalances(AccountType $type, Carbon $asOf, string $currency): array
     {
@@ -81,18 +90,29 @@ class BalanceSheet
             ->orderBy('code')
             ->get();
 
+        if ($accounts->isEmpty()) {
+            return [];
+        }
+
+        $endOfDay = $asOf->copy()->endOfDay();
+        $accountIds = $accounts->pluck('id')->all();
+
+        // Single aggregate query for all accounts of this type
+        $balanceMap = DB::table('accounting_ledger_entries')
+            ->whereIn('account_id', $accountIds)
+            ->where('is_posted', true)
+            ->where('post_date', '<=', $endOfDay)
+            ->groupBy('account_id')
+            ->selectRaw('account_id, SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->get()
+            ->keyBy('account_id');
+
         $rows = [];
 
         foreach ($accounts as $account) {
-            $debits = (int) $account->ledgerEntries()
-                ->where('is_posted', true)
-                ->where('post_date', '<=', $asOf->copy()->endOfDay())
-                ->sum('debit');
-
-            $credits = (int) $account->ledgerEntries()
-                ->where('is_posted', true)
-                ->where('post_date', '<=', $asOf->copy()->endOfDay())
-                ->sum('credit');
+            $row = $balanceMap->get($account->id);
+            $debits = $row ? (int) $row->total_debit : 0;
+            $credits = $row ? (int) $row->total_credit : 0;
 
             $balance = $account->isDebitNormal()
                 ? $debits - $credits

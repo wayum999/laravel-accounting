@@ -29,7 +29,7 @@ class TransactionBuilderTest extends TestCase
         parent::setUp();
 
         $this->cash = Account::create(['name' => 'Cash', 'code' => '1000', 'type' => AccountType::ASSET]);
-        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::INCOME]);
+        $this->revenue = Account::create(['name' => 'Revenue', 'code' => '4000', 'type' => AccountType::REVENUE]);
         $this->expense = Account::create(['name' => 'Rent', 'code' => '5000', 'type' => AccountType::EXPENSE]);
         $this->ar = Account::create(['name' => 'AR', 'code' => '1100', 'type' => AccountType::ASSET, 'sub_type' => AccountSubType::ACCOUNTS_RECEIVABLE]);
         $this->ap = Account::create(['name' => 'AP', 'code' => '2000', 'type' => AccountType::LIABILITY, 'sub_type' => AccountSubType::ACCOUNTS_PAYABLE]);
@@ -198,7 +198,7 @@ class TransactionBuilderTest extends TestCase
 
         $arEntry = $je->ledgerEntries->where('account_id', $this->ar->id)->first();
 
-        $this->assertEquals(get_class($invoiceModel), $arEntry->ledgerable_type);
+        $this->assertEquals($invoiceModel->getMorphClass(), $arEntry->ledgerable_type);
         $this->assertEquals($invoiceModel->id, $arEntry->ledgerable_id);
     }
 
@@ -344,5 +344,40 @@ class TransactionBuilderTest extends TestCase
         // Balance should only reflect the posted transaction
         $this->cash->refresh();
         $this->assertEquals(10000, $this->cash->cached_balance);
+    }
+
+    // -------------------------------------------------------
+    // Additional coverage (H19, M25)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function commit_with_zero_entries_throws_on_unbalanced(): void
+    {
+        // An empty builder has 0 debits and 0 credits; 0 === 0 so it should
+        // succeed (balanced empty journal). This verifies the builder doesn't crash.
+        $je = TransactionBuilder::create()->commit();
+
+        $this->assertInstanceOf(\App\Accounting\Models\JournalEntry::class, $je);
+        $this->assertCount(0, $je->ledgerEntries);
+        $this->assertTrue($je->isBalanced());
+    }
+
+    #[Test]
+    public function failed_mid_commit_leaves_no_records(): void
+    {
+        // Simulate an unbalanced commit (throws before persisting) and verify
+        // no JournalEntry is created — the transaction rolled back.
+        $countBefore = \App\Accounting\Models\JournalEntry::count();
+
+        try {
+            TransactionBuilder::create()
+                ->debit($this->cash, 5000)
+                // Deliberately omit matching credit to force UnbalancedTransactionException
+                ->commit();
+        } catch (\App\Accounting\Exceptions\UnbalancedTransactionException) {
+            // expected
+        }
+
+        $this->assertEquals($countBefore, \App\Accounting\Models\JournalEntry::count());
     }
 }

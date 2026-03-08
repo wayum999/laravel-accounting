@@ -13,6 +13,14 @@ use Tests\TestCase;
 
 class AccountModelTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        // Reset any frozen time set by Carbon::setTestNow() so leaks don't
+        // affect subsequent tests when an assertion fails mid-test.
+        \Carbon\Carbon::setTestNow(null);
+        parent::tearDown();
+    }
+
     #[Test]
     public function it_creates_an_account_with_defaults(): void
     {
@@ -75,7 +83,7 @@ class AccountModelTest extends TestCase
     #[Test]
     public function it_computes_balance_for_credit_normal_account(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $account->credit(5000, 'Sale');
         $account->credit(3000, 'Sale 2');
@@ -130,7 +138,7 @@ class AccountModelTest extends TestCase
     #[Test]
     public function it_posts_credit_entries(): void
     {
-        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::INCOME]);
+        $account = Account::create(['name' => 'Revenue', 'type' => AccountType::REVENUE]);
 
         $entry = $account->credit(3000, 'Test credit');
 
@@ -274,5 +282,94 @@ class AccountModelTest extends TestCase
         $this->assertSoftDeleted('accounting_accounts', ['id' => $id]);
         $this->assertNull(Account::find($id));
         $this->assertNotNull(Account::withTrashed()->find($id));
+    }
+
+    // -------------------------------------------------------
+    // setBalanceAttribute edge cases (H24)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function set_balance_attribute_handles_money_object(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = \Money\Money::USD(12345);
+
+        $this->assertEquals(12345, $account->cached_balance);
+        $this->assertEquals('USD', $account->currency);
+    }
+
+    #[Test]
+    public function set_balance_attribute_handles_integer(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = 9999;
+
+        $this->assertEquals(9999, $account->cached_balance);
+    }
+
+    #[Test]
+    public function set_balance_attribute_handles_null_as_zero(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = null;
+
+        $this->assertEquals(0, $account->cached_balance);
+    }
+
+    #[Test]
+    public function set_balance_attribute_handles_true_as_zero(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = true;
+
+        $this->assertEquals(0, $account->cached_balance);
+    }
+
+    #[Test]
+    public function set_balance_attribute_handles_false_as_zero(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = false;
+
+        $this->assertEquals(0, $account->cached_balance);
+    }
+
+    #[Test]
+    public function set_balance_attribute_handles_non_numeric_string_as_zero(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->balance = 'not a number';
+
+        $this->assertEquals(0, $account->cached_balance);
+    }
+
+    // -------------------------------------------------------
+    // isDebitNormal null type (M5)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function is_debit_normal_throws_when_type_is_null(): void
+    {
+        $account = new Account();
+        $account->forceFill(['name' => 'Untyped']);
+
+        $this->expectException(\LogicException::class);
+        $account->isDebitNormal();
+    }
+
+    // -------------------------------------------------------
+    // Balance caching vs live balance clarity (M13)
+    // -------------------------------------------------------
+
+    #[Test]
+    public function get_cached_balance_attribute_matches_live_balance_after_post(): void
+    {
+        $account = Account::create(['name' => 'Cash', 'type' => AccountType::ASSET]);
+        $account->debit(5000);
+
+        $account->refresh();
+        // $account->balance uses the getBalanceAttribute() accessor (cached value as Money)
+        $this->assertEquals(5000, (int) $account->balance->getAmount());
+        $this->assertEquals(5000, (int) $account->getBalance()->getAmount());
     }
 }

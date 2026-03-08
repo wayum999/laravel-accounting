@@ -24,14 +24,24 @@ enum AccountSubType: string
     case OWNERS_EQUITY = 'owners_equity';
     case RETAINED_EARNINGS = 'retained_earnings';
 
-    // Income sub-types
+    // Revenue sub-types (including contra-revenue)
     case REVENUE = 'revenue';
+    case SALES_DISCOUNTS = 'sales_discounts';
+    case SALES_RETURNS_ALLOWANCES = 'sales_returns_allowances';
+
+    // Other Income sub-types (non-operating income)
     case OTHER_INCOME = 'other_income';
+    case GAIN_ON_SALE = 'gain_on_sale';
+    case OTHER_GAIN = 'other_gain';
 
     // Expense sub-types
     case COST_OF_GOODS_SOLD = 'cost_of_goods_sold';
     case OPERATING_EXPENSE = 'operating_expense';
+
+    // Other Expense sub-types (non-operating expenses)
     case OTHER_EXPENSE = 'other_expense';
+    case LOSS_ON_SALE = 'loss_on_sale';
+    case OTHER_LOSS = 'other_loss';
 
     /**
      * Which parent AccountType this sub-type belongs to.
@@ -55,11 +65,19 @@ enum AccountSubType: string
             self::RETAINED_EARNINGS => AccountType::EQUITY,
 
             self::REVENUE,
-            self::OTHER_INCOME => AccountType::INCOME,
+            self::SALES_DISCOUNTS,
+            self::SALES_RETURNS_ALLOWANCES => AccountType::REVENUE,
+
+            self::OTHER_INCOME,
+            self::GAIN_ON_SALE,
+            self::OTHER_GAIN => AccountType::OTHER_INCOME,
 
             self::COST_OF_GOODS_SOLD,
-            self::OPERATING_EXPENSE,
-            self::OTHER_EXPENSE => AccountType::EXPENSE,
+            self::OPERATING_EXPENSE => AccountType::EXPENSE,
+
+            self::OTHER_EXPENSE,
+            self::LOSS_ON_SALE,
+            self::OTHER_LOSS => AccountType::OTHER_EXPENSE,
         };
     }
 
@@ -86,12 +104,20 @@ enum AccountSubType: string
             self::OWNERS_EQUITY,
             self::RETAINED_EARNINGS => 'Equity',
 
-            self::REVENUE => 'Revenue',
-            self::OTHER_INCOME => 'Other Income',
+            self::REVENUE,
+            self::SALES_DISCOUNTS,
+            self::SALES_RETURNS_ALLOWANCES => 'Revenue',
+
+            self::OTHER_INCOME,
+            self::GAIN_ON_SALE,
+            self::OTHER_GAIN => 'Other Income',
 
             self::COST_OF_GOODS_SOLD => 'Cost of Goods Sold',
             self::OPERATING_EXPENSE => 'Operating Expenses',
-            self::OTHER_EXPENSE => 'Other Expenses',
+
+            self::OTHER_EXPENSE,
+            self::LOSS_ON_SALE,
+            self::OTHER_LOSS => 'Other Expenses',
         };
     }
 
@@ -132,10 +158,16 @@ enum AccountSubType: string
             self::OWNERS_EQUITY => "Owner's Equity",
             self::RETAINED_EARNINGS => 'Retained Earnings',
             self::REVENUE => 'Revenue',
+            self::SALES_DISCOUNTS => 'Sales Discounts',
+            self::SALES_RETURNS_ALLOWANCES => 'Sales Returns & Allowances',
             self::OTHER_INCOME => 'Other Income',
+            self::GAIN_ON_SALE => 'Gain on Sale',
+            self::OTHER_GAIN => 'Other Gain',
             self::COST_OF_GOODS_SOLD => 'Cost of Goods Sold',
             self::OPERATING_EXPENSE => 'Operating Expense',
             self::OTHER_EXPENSE => 'Other Expense',
+            self::LOSS_ON_SALE => 'Loss on Sale',
+            self::OTHER_LOSS => 'Other Loss',
         };
     }
 

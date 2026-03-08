@@ -12,9 +12,34 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Money\Currency;
 use Money\Money;
 
+/**
+ * Represents a chart-of-accounts entry in the double-entry accounting system.
+ *
+ * Balance reads:
+ *   - `$account->balance`         → cached Money value (may be stale between resequences)
+ *   - `$account->getBalance()`    → live Money value computed from ledger entries
+ *
+ * Mutations must go through TransactionBuilder to maintain the double-entry invariant.
+ * Direct debit()/credit() helpers are available for simple one-sided entries but bypass
+ * the double-entry constraint; prefer TransactionBuilder in new code.
+ *
+ * @property int         $id
+ * @property int|null    $parent_id
+ * @property string      $name
+ * @property string|null $code
+ * @property AccountType $type
+ * @property AccountSubType|null $sub_type
+ * @property string|null $description
+ * @property string      $currency
+ * @property int         $cached_balance
+ * @property bool        $is_active
+ * @property string|null $accountable_type
+ * @property int|null    $accountable_id
+ */
 class Account extends Model
 {
     use SoftDeletes;
@@ -29,7 +54,6 @@ class Account extends Model
         'sub_type',
         'description',
         'currency',
-        'cached_balance',
         'is_active',
         'accountable_type',
         'accountable_id',
@@ -85,13 +109,27 @@ class Account extends Model
     // Balance attribute accessor/mutator
     // -------------------------------------------------------
 
+    /**
+     * Returns the cached (potentially stale) balance as a Money object.
+     *
+     * This is the Eloquent accessor for the `balance` virtual property.
+     * The underlying `cached_balance` column stores an integer (cents); this
+     * accessor wraps it in a Money object for a consistent API.
+     *
+     * WARNING: this value may be stale between a post() and the next
+     * recalculateBalance() call. Use getBalance() when you need a live
+     * value computed from ledger entries.
+     *
+     * @see getBalance() for a live, accurate balance
+     */
     public function getBalanceAttribute(): Money
     {
         $amount = $this->attributes['cached_balance'] ?? 0;
-        $currency = $this->attributes['currency'] ?? 'USD';
+        $currency = $this->attributes['currency'] ?? config('accounting.base_currency', 'USD');
 
         return new Money((string) $amount, new Currency($currency));
     }
+
 
     public function setBalanceAttribute(mixed $value): void
     {
@@ -111,9 +149,18 @@ class Account extends Model
     // Normal balance helpers
     // -------------------------------------------------------
 
+    /**
+     * @throws \LogicException if account type is not set
+     */
     public function isDebitNormal(): bool
     {
-        return $this->type?->isDebitNormal() ?? true; // default to debit-normal if no type set
+        if ($this->type === null) {
+            throw new \LogicException(
+                "Account [{$this->id}] has no type set; cannot determine normal balance direction."
+            );
+        }
+
+        return $this->type->isDebitNormal();
     }
 
     public function isCreditNormal(): bool
@@ -126,19 +173,25 @@ class Account extends Model
     // -------------------------------------------------------
 
     /**
-     * Compute balance from all ledger entries, respecting normal balance direction.
-     * Always returns positive when the account is in its normal state.
+     * Compute balance from all ledger entries using a single query.
+     * Respects normal balance direction. Always returns positive when
+     * the account is in its normal state.
      */
     public function getBalance(): Money
     {
-        $debits = (int) $this->ledgerEntries()->where('is_posted', true)->sum('debit');
-        $credits = (int) $this->ledgerEntries()->where('is_posted', true)->sum('credit');
+        $row = $this->ledgerEntries()
+            ->where('is_posted', true)
+            ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->first();
+
+        $debits = $row ? (int) $row->total_debit : 0;
+        $credits = $row ? (int) $row->total_credit : 0;
 
         $balance = $this->isDebitNormal()
             ? $debits - $credits
             : $credits - $debits;
 
-        return new Money((string) $balance, new Currency($this->currency ?? 'USD'));
+        return new Money((string) $balance, new Currency($this->currency ?? config('accounting.base_currency', 'USD')));
     }
 
     public function getBalanceInDollars(): float
@@ -146,36 +199,43 @@ class Account extends Model
         return (int) $this->getBalance()->getAmount() / 100;
     }
 
+    /**
+     * @deprecated Use getBalance() instead.
+     */
     public function getCurrentBalance(): Money
     {
         return $this->getBalance();
     }
 
+    /**
+     * @deprecated Use getBalanceInDollars() instead.
+     */
     public function getCurrentBalanceInDollars(): float
     {
         return $this->getBalanceInDollars();
     }
 
     /**
-     * Balance as of a specific date (inclusive).
+     * Balance as of a specific date (inclusive), using a single query.
      */
     public function getBalanceOn(Carbon $date): Money
     {
-        $debits = (int) $this->ledgerEntries()
-            ->where('is_posted', true)
-            ->where('post_date', '<=', $date->copy()->endOfDay())
-            ->sum('debit');
+        $endOfDay = $date->copy()->endOfDay();
 
-        $credits = (int) $this->ledgerEntries()
+        $row = $this->ledgerEntries()
             ->where('is_posted', true)
-            ->where('post_date', '<=', $date->copy()->endOfDay())
-            ->sum('credit');
+            ->where('post_date', '<=', $endOfDay)
+            ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')
+            ->first();
+
+        $debits = $row ? (int) $row->total_debit : 0;
+        $credits = $row ? (int) $row->total_credit : 0;
 
         $balance = $this->isDebitNormal()
             ? $debits - $credits
             : $credits - $debits;
 
-        return new Money((string) $balance, new Currency($this->currency ?? 'USD'));
+        return new Money((string) $balance, new Currency($this->currency ?? config('accounting.base_currency', 'USD')));
     }
 
     public function getDebitBalanceOn(Carbon $date): Money
@@ -185,7 +245,7 @@ class Account extends Model
             ->where('post_date', '<=', $date->copy()->endOfDay())
             ->sum('debit');
 
-        return new Money((string) $amount, new Currency($this->currency ?? 'USD'));
+        return new Money((string) $amount, new Currency($this->currency ?? config('accounting.base_currency', 'USD')));
     }
 
     public function getCreditBalanceOn(Carbon $date): Money
@@ -195,7 +255,7 @@ class Account extends Model
             ->where('post_date', '<=', $date->copy()->endOfDay())
             ->sum('credit');
 
-        return new Money((string) $amount, new Currency($this->currency ?? 'USD'));
+        return new Money((string) $amount, new Currency($this->currency ?? config('accounting.base_currency', 'USD')));
     }
 
     // -------------------------------------------------------
@@ -204,55 +264,79 @@ class Account extends Model
 
     /**
      * Post a debit to this account. Amount in cents or Money object.
+     *
+     * WARNING: This creates a LedgerEntry without a parent JournalEntry, orphaning it
+     * from the journal and breaking the audit trail. It also bypasses the double-entry
+     * invariant — no offsetting credit is recorded.
+     *
+     * @deprecated Use TransactionBuilder::create()->debit($account, $amount)->credit($other, $amount)->commit() instead.
      */
     public function debit(int|Money $amount, ?string $memo = null, ?Carbon $postDate = null, ?Model $reference = null): LedgerEntry
     {
         $cents = $amount instanceof Money ? (int) $amount->getAmount() : $amount;
-        $currency = $amount instanceof Money ? $amount->getCurrency()->getCode() : ($this->currency ?? 'USD');
+        $currency = $amount instanceof Money ? $amount->getCurrency()->getCode() : ($this->currency ?? config('accounting.base_currency', 'USD'));
 
-        $entry = $this->ledgerEntries()->create([
-            'debit' => $cents,
-            'credit' => 0,
-            'currency' => $currency,
-            'memo' => $memo,
-            'post_date' => $postDate ?? now(),
-            'ledgerable_type' => $reference ? get_class($reference) : null,
-            'ledgerable_id' => $reference?->getKey(),
-        ]);
+        return DB::transaction(function () use ($cents, $currency, $memo, $postDate, $reference) {
+            $entry = $this->ledgerEntries()->create([
+                'debit' => $cents,
+                'credit' => 0,
+                'currency' => $currency,
+                'memo' => $memo,
+                'post_date' => $postDate ?? now(),
+                'ledgerable_type' => $reference ? $reference->getMorphClass() : null,
+                'ledgerable_id' => $reference?->getKey(),
+            ]);
 
-        $this->refresh();
+            $this->resequenceRunningBalances();
+            $this->recalculateBalance();
 
-        return $entry;
+            return $entry;
+        });
     }
 
     /**
      * Post a credit to this account. Amount in cents or Money object.
+     *
+     * WARNING: This creates a LedgerEntry without a parent JournalEntry, orphaning it
+     * from the journal and breaking the audit trail. It also bypasses the double-entry
+     * invariant — no offsetting debit is recorded.
+     *
+     * @deprecated Use TransactionBuilder::create()->debit($account, $amount)->credit($other, $amount)->commit() instead.
      */
     public function credit(int|Money $amount, ?string $memo = null, ?Carbon $postDate = null, ?Model $reference = null): LedgerEntry
     {
         $cents = $amount instanceof Money ? (int) $amount->getAmount() : $amount;
-        $currency = $amount instanceof Money ? $amount->getCurrency()->getCode() : ($this->currency ?? 'USD');
+        $currency = $amount instanceof Money ? $amount->getCurrency()->getCode() : ($this->currency ?? config('accounting.base_currency', 'USD'));
 
-        $entry = $this->ledgerEntries()->create([
-            'debit' => 0,
-            'credit' => $cents,
-            'currency' => $currency,
-            'memo' => $memo,
-            'post_date' => $postDate ?? now(),
-            'ledgerable_type' => $reference ? get_class($reference) : null,
-            'ledgerable_id' => $reference?->getKey(),
-        ]);
+        return DB::transaction(function () use ($cents, $currency, $memo, $postDate, $reference) {
+            $entry = $this->ledgerEntries()->create([
+                'debit' => 0,
+                'credit' => $cents,
+                'currency' => $currency,
+                'memo' => $memo,
+                'post_date' => $postDate ?? now(),
+                'ledgerable_type' => $reference ? $reference->getMorphClass() : null,
+                'ledgerable_id' => $reference?->getKey(),
+            ]);
 
-        $this->refresh();
+            $this->resequenceRunningBalances();
+            $this->recalculateBalance();
 
-        return $entry;
+            return $entry;
+        });
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->debitDollars($account, $dollars)->creditDollars($other, $dollars)->commit() instead.
+     */
     public function debitDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->debit((int) round($dollars * 100), $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->debitDollars($account, $dollars)->creditDollars($other, $dollars)->commit() instead.
+     */
     public function creditDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->credit((int) round($dollars * 100), $memo, $postDate);
@@ -265,6 +349,8 @@ class Account extends Model
     /**
      * Increase this account's balance. Automatically selects debit or credit
      * based on the account type's normal balance direction.
+     *
+     * @deprecated Use TransactionBuilder::create()->increase($account, $amount)->decrease($other, $amount)->commit() instead.
      */
     public function increase(int $amount, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
@@ -276,6 +362,8 @@ class Account extends Model
     /**
      * Decrease this account's balance. Automatically selects debit or credit
      * based on the account type's normal balance direction.
+     *
+     * @deprecated Use TransactionBuilder::create()->decrease($account, $amount)->increase($other, $amount)->commit() instead.
      */
     public function decrease(int $amount, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
@@ -284,11 +372,17 @@ class Account extends Model
             : $this->debit($amount, $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->increase($account, $amount)->decrease($other, $amount)->commit() instead.
+     */
     public function increaseDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->increase((int) round($dollars * 100), $memo, $postDate);
     }
 
+    /**
+     * @deprecated Use TransactionBuilder::create()->decrease($account, $amount)->increase($other, $amount)->commit() instead.
+     */
     public function decreaseDollars(float $dollars, ?string $memo = null, ?Carbon $postDate = null): LedgerEntry
     {
         return $this->decrease((int) round($dollars * 100), $memo, $postDate);
@@ -338,7 +432,7 @@ class Account extends Model
     public function entriesReferencingModel(Model $model): HasMany
     {
         return $this->ledgerEntries()
-            ->where('ledgerable_type', get_class($model))
+            ->where('ledgerable_type', $model->getMorphClass())
             ->where('ledgerable_id', $model->getKey());
     }
 
@@ -356,5 +450,42 @@ class Account extends Model
         $this->saveQuietly();
 
         return $balance;
+    }
+
+    /**
+     * Resequence running_balance on all posted ledger entries for this account,
+     * ordered by (post_date, id). Uses a database lock to prevent race conditions
+     * from concurrent writes.
+     *
+     * Must be called after any batch of entries is posted or unposted.
+     */
+    public function resequenceRunningBalances(): void
+    {
+        DB::transaction(function () {
+            // Lock the account row to serialize concurrent resequencing
+            DB::table($this->getTable())
+                ->where('id', $this->id)
+                ->lockForUpdate()
+                ->first();
+
+            $entries = $this->ledgerEntries()
+                ->where('is_posted', true)
+                ->orderBy('post_date')
+                ->orderBy('id')
+                ->get(['id', 'debit', 'credit']);
+
+            $balance = 0;
+
+            foreach ($entries as $entry) {
+                $balance += $this->isDebitNormal()
+                    ? (int) $entry->debit - (int) $entry->credit
+                    : (int) $entry->credit - (int) $entry->debit;
+
+                // Bypass Eloquent events; only updating a computed column
+                DB::table('accounting_ledger_entries')
+                    ->where('id', $entry->id)
+                    ->update(['running_balance' => $balance]);
+            }
+        });
     }
 }
